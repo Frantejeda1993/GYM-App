@@ -71,7 +71,7 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   background: rgba(17, 19, 22, 0.94); backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);
   padding-bottom: var(--safe-b);
@@ -273,3 +273,24 @@ p.warn-box { padding: 10px 12px; }
 .rest-time { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .rest.done { border-color: var(--accent); }
 .rest.done .rest-time { color: var(--accent); }
+.change-block { margin: 12px 0; }
+.change-block.progression { background: var(--accent-soft); border-radius: 12px; padding: 4px 12px 8px; }
+.toggle-row { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; font-size: 15px; line-height: 1.35; }
+.toggle-row input { width: 22px; height: 22px; min-height: 0; flex-shrink: 0; margin-top: 1px; accent-color: var(--accent); }
+
+/* Progreso */
+.trend { font-size: 12px; font-weight: 700; }
+.trend.up { color: var(--accent); }
+.trend.down { color: var(--muted); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.stat-value { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stat-sub { font-size: 12px; color: var(--muted); }
+.chart { margin: 6px 0 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 8px 4px; }
+.chart-tip { display: flex; gap: 8px; align-items: baseline; padding: 0 6px 4px; font-size: 13px; color: var(--muted); }
+.chart-tip strong { color: var(--text); font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart svg { display: block; overflow: visible; }
+.hist { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.hist th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.hist td { padding: 8px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }

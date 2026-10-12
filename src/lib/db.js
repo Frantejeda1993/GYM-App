@@ -99,7 +99,7 @@ export function saveSessionProgress(uid, id, { entries, cardio }) {
 
 // Finaliza: la sesión queda inmutable, la plantilla se actualiza a futuro
 // y, en modo secuencial, avanza la secuencia.
-export function finalizeSession(uid, session, routine, changes) {
+export function finalizeSession(uid, session, routine, templateSessions) {
   const batch = writeBatch(db);
   batch.update(doc(db, 'users', uid, 'sessions', session.id), {
     entries: session.entries,
@@ -109,7 +109,7 @@ export function finalizeSession(uid, session, routine, changes) {
   });
   if (routine) {
     const patch = {};
-    if (changes) patch.templateSessions = changes.templateSessions;
+    if (templateSessions) patch.templateSessions = templateSessions;
     if (routine.mode === 'sequential') patch.nextSequenceIndex = nextSequenceIndex(routine, session.templateSessionId);
     if (Object.keys(patch).length) {
       batch.update(doc(db, 'users', uid, 'routines', routine.id), { ...patch, updatedAt: serverTimestamp() });

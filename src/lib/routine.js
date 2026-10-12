@@ -22,6 +22,8 @@ export function newStrengthItem(exercise, profile) {
     loadKg: lt === 'barbell' ? Number(exercise.defaultBarKg ?? profile?.defaultBarKg ?? 20) : 0,
     barKg: lt === 'barbell' ? Number(exercise.defaultBarKg ?? profile?.defaultBarKg ?? 20) : 0,
     restSec: 120,
+    loadMode: 'fixed', // 'fixed' | 'progressive' (un peso por serie en setLoads)
+    setLoads: null,
     incrementKg: LOAD_TYPES[lt]?.increment ?? 2.5,
   };
 }

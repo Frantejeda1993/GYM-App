@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { sequenceLetter, cardioSummary, setsLabel, WEEKDAYS } from '../lib/routine';
-import { describeLoad } from '../lib/load';
+import { describeLoad, describeItemLoad } from '../lib/load';
 import { toISODate, now, formatDay, weekdayIndex } from '../lib/dates';
 import {
   plannedSessionFor, missedDays, buildSession, orderedSessions, anyMarked, countSets,
-  templateChanges, proposeReorganization,
+  proposeReorganization,
 } from '../lib/sessions';
-import { startSession, finalizeSession, discardSession, skipMissedDays, applyReorganization } from '../lib/db';
+import { startSession, discardSession, skipMissedDays, applyReorganization } from '../lib/db';
 import { Header, Empty, Modal } from '../components/ui';
 import ExerciseThumb from '../components/ExerciseThumb';
 
@@ -94,7 +94,7 @@ export default function Today() {
         </Modal>
       )}
 
-      {stale && <UnfinishedModal session={stale} user={user} routine={routineById(stale.routineId)} navigate={navigate} />}
+      {stale && <UnfinishedModal session={stale} user={user} navigate={navigate} />}
 
       {!stale && missed.length > 0 && !reorganizing && (
         <MissedModal
@@ -150,7 +150,7 @@ function PlannedCard({ routine, session, restDay, exerciseById, onStart, onChoos
                   <ExerciseThumb exercise={ex} size={48} />
                   <span className="row-text">
                     <span className="row-title">{ex?.name || 'Ejercicio'}</span>
-                    <span className="row-sub">{setsLabel(it)} · {describeLoad(it.loadKg, ex?.loadType, it.barKg)}</span>
+                    <span className="row-sub">{setsLabel(it)} · {describeItemLoad(it, ex?.loadType)}</span>
                   </span>
                 </li>
               );
@@ -167,7 +167,7 @@ function PlannedCard({ routine, session, restDay, exerciseById, onStart, onChoos
   );
 }
 
-function UnfinishedModal({ session, user, routine, navigate }) {
+function UnfinishedModal({ session, user, navigate }) {
   const marked = anyMarked(session);
   const { done, total } = countSets(session);
   return (
@@ -179,10 +179,10 @@ function UnfinishedModal({ session, user, routine, navigate }) {
       {marked && (
         <button
           className="choice"
-          onClick={() => finalizeSession(user.uid, session, routine, templateChanges(session, routine, describeLoad))}
+          onClick={() => navigate(`/sesion/${session.id}?finalizar=1`)}
         >
           <strong>Finalizar con lo marcado</strong>
-          <span>Las series sin marcar quedan como no realizadas. Se guarda con su fecha original.</span>
+          <span>Las series sin marcar quedan como no realizadas. Se guarda con su fecha original; antes ves los cambios en la rutina.</span>
         </button>
       )}
       <button className="choice" onClick={() => navigate(`/sesion/${session.id}`)}>

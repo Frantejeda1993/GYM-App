@@ -2,6 +2,7 @@
 // construcción de una sesión desde la plantilla y cambios a aplicar en la plantilla.
 import { toISODate, weekDates, weekdayIndex, now, timestampToISODate } from './dates';
 import { uid } from './text';
+import { progressionFor, previousEntry } from './progression';
 
 export const orderedSessions = (routine) =>
   [...(routine?.templateSessions || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -66,14 +67,12 @@ function entryFromItem(item, exercise, extra = {}) {
     repMax: item.repMax,
     restSec: item.restSec ?? 120,
     incrementKg: item.incrementKg,
+    loadMode: item.loadMode || 'fixed',
     adhoc: false,
-    sets: Array.from({ length: item.sets }, () => ({
-      plannedKg: item.loadKg,
-      plannedReps,
-      kg: item.loadKg,
-      reps: plannedReps,
-      done: false,
-    })),
+    sets: Array.from({ length: item.sets }, (_, i) => {
+      const kg = item.loadMode === 'progressive' ? item.setLoads?.[i] ?? item.setLoads?.at(-1) ?? item.loadKg : item.loadKg;
+      return { plannedKg: kg, plannedReps, kg, reps: plannedReps, done: false };
+    }),
     ...extra,
   };
 }
@@ -132,65 +131,125 @@ function mode(values) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
 }
 
-// Cambios a aplicar en la plantilla al finalizar (siempre, a futuro).
-// Devuelve { templateSessions, changes: [{ label, detail }] } o null si no hay cambios.
-export function templateChanges(session, routine, describe) {
+const plannedLoadAt = (item, i) =>
+  item.loadMode === 'progressive' ? item.setLoads?.[i] ?? item.setLoads?.at(-1) ?? item.loadKg : item.loadKg;
+
+// Cambios propuestos para la plantilla al finalizar. Cada cambio:
+// { id, itemId, label, detail, down, kind: 'update' | 'progression' | 'add', patch }
+// Regla: lo que sube se aplica siempre; lo que baja y las progresiones se preguntan.
+export function computeChanges(session, routine, describe, sessions = []) {
   const ts = routine?.templateSessions?.find((t) => t.id === session.templateSessionId);
-  if (!ts) return null;
+  if (!ts) return [];
   const changes = [];
-  const items = ts.items.map((item) => {
+  const push = (c) => changes.push({ kind: 'update', ...c });
+
+  ts.items.forEach((item) => {
     if (item.kind === 'cardio') {
       const c = (session.cardio || []).find((x) => x.itemId === item.id && !x.adhoc);
-      if (!c?.done) return item;
-      const next = { ...item };
-      ['minutes', 'steps', 'kcal'].forEach((k) => {
-        if ((c[k] ?? null) !== (c.planned?.[k] ?? null)) next[k] = c[k] ?? null;
+      if (!c?.done) return;
+      [['minutes', 'min'], ['steps', 'pasos'], ['kcal', 'kcal']].forEach(([k, unit]) => {
+        const v = c[k] ?? null;
+        const old = item[k] ?? null;
+        if (v != null && v !== old) {
+          push({ id: `${item.id}:${k}`, itemId: item.id, label: `Cardio · ${c.cardioType}`, detail: `${old ?? 0} → ${v} ${unit}`, down: v < (old ?? 0), patch: { field: k, value: v } });
+        }
       });
-      if (JSON.stringify(next) !== JSON.stringify(item)) changes.push({ label: `Cardio · ${item.cardioType}`, detail: 'objetivo actualizado' });
-      return next;
+      return;
     }
     const e = (session.entries || []).find((x) => x.itemId === item.id && !x.adhoc);
-    if (!e) return item;
-    const next = { ...item };
-    const parts = [];
+    if (!e) return;
+    const fmt = (kg) => describe(kg, e.loadType, e.barKg);
     if (e.sets.length !== item.sets) {
-      next.sets = e.sets.length;
-      parts.push(`${item.sets} → ${e.sets.length} series`);
+      push({
+        id: `${item.id}:sets`, itemId: item.id, label: e.name, detail: `${item.sets} → ${e.sets.length} series`,
+        down: e.sets.length < item.sets, patch: { field: 'sets', value: e.sets.length, loads: e.sets.map((x) => x.kg) },
+      });
     }
-    const done = e.sets.filter((s) => s.done);
-    if (done.length) {
-      if (done.some((s) => s.kg !== s.plannedKg)) {
-        const kg = mode(done.map((s) => s.kg));
-        if (kg !== item.loadKg) {
-          next.loadKg = kg;
-          parts.push(`${describe(item.loadKg, e.loadType, e.barKg)} → ${describe(kg, e.loadType, e.barKg)}`);
+    const done = e.sets.map((x, i) => ({ ...x, i })).filter((x) => x.done);
+    if (!done.length) return;
+    if (item.loadMode === 'progressive') {
+      // Progresivo: se actualiza el peso de cada serie hecha.
+      done.forEach((x) => {
+        const old = plannedLoadAt(item, x.i);
+        if (x.i < item.sets && x.kg !== old) {
+          push({ id: `${item.id}:set${x.i}`, itemId: item.id, label: `${e.name} · serie ${x.i + 1}`, detail: `${fmt(old)} → ${fmt(x.kg)}`, down: x.kg < old, patch: { field: 'setLoad', index: x.i, value: x.kg } });
         }
-      }
-      if (done.some((s) => s.reps !== s.plannedReps)) {
-        const reps = mode(done.map((s) => s.reps));
-        if (reps !== (item.reps ?? item.repMin)) {
-          next.reps = reps;
-          parts.push(`${item.reps ?? item.repMin} → ${reps} reps`);
-        }
+      });
+    } else {
+      // Fijo: se usa el mayor peso alcanzado.
+      const max = Math.max(...done.map((x) => x.kg));
+      if (max !== item.loadKg) {
+        push({ id: `${item.id}:load`, itemId: item.id, label: e.name, detail: `${fmt(item.loadKg)} → ${fmt(max)}`, down: max < item.loadKg, patch: { field: 'loadKg', value: max } });
       }
     }
-    if (parts.length) changes.push({ label: e.name, detail: parts.join(' · ') });
-    return next;
+    const reps = mode(done.map((x) => x.reps));
+    const oldReps = item.reps ?? item.repMin;
+    if (reps !== oldReps) {
+      push({ id: `${item.id}:reps`, itemId: item.id, label: e.name, detail: `${oldReps} → ${reps} reps`, down: reps < oldReps, patch: { field: 'reps', value: reps } });
+    }
+    const prog = progressionFor({ ...item, loadType: e.loadType }, e, previousEntry(sessions, session, e));
+    if (prog) {
+      const up = prog.dir === 'up';
+      changes.push({
+        kind: 'progression', id: `${item.id}:prog`, itemId: item.id, label: e.name, down: !up, patch: { field: 'progress', delta: prog.delta },
+        detail: up
+          ? `Completaste ${item.repMax} reps en todas las series: subir ${String(prog.delta).replace('.', ',')} kg${item.loadMode === 'progressive' ? ' en cada serie' : ''} y volver a ${item.repMin} reps`
+          : `Dos sesiones por debajo de ${item.repMin} reps: bajar ${String(-prog.delta).replace('.', ',')} kg`,
+      });
+    }
   });
-  // Añadidos como "fijo" durante la sesión
+
   (session.entries || []).filter((e) => e.adhoc && e.fixed && e.newItem).forEach((e) => {
-    items.push({ ...e.newItem, sets: e.sets.length });
-    changes.push({ label: e.name, detail: 'añadido a la rutina' });
+    changes.push({ kind: 'add', id: `add:${e.id}`, label: e.name, detail: 'añadido a la rutina', down: false, patch: { item: { ...e.newItem, sets: e.sets.length } } });
   });
   (session.cardio || []).filter((c) => c.adhoc && c.fixed && c.newItem).forEach((c) => {
-    items.push({ ...c.newItem, cardioType: c.cardioType, minutes: c.minutes ?? null, steps: c.steps ?? null, kcal: c.kcal ?? null });
-    changes.push({ label: `Cardio · ${c.cardioType}`, detail: 'añadido a la rutina' });
+    changes.push({
+      kind: 'add', id: `add:${c.id}`, label: `Cardio · ${c.cardioType}`, detail: 'añadido a la rutina', down: false,
+      patch: { item: { ...c.newItem, cardioType: c.cardioType, minutes: c.minutes ?? null, steps: c.steps ?? null, kcal: c.kcal ?? null } },
+    });
   });
-  if (!changes.length) return null;
-  return {
-    templateSessions: routine.templateSessions.map((t) => (t.id === ts.id ? { ...t, items } : t)),
-    changes,
-  };
+  return changes;
+}
+
+// Cambios que se aplican por defecto: los que suben y las progresiones hacia arriba.
+export const defaultAccepted = (changes) => new Set(changes.filter((c) => !c.down).map((c) => c.id));
+
+// Nueva lista de sesiones de la plantilla con los cambios aceptados, o null si no cambia nada.
+export function applyChanges(routine, templateSessionId, changes, accepted) {
+  const chosen = changes.filter((c) => (c.down || c.kind === 'progression' ? accepted.has(c.id) : true));
+  if (!chosen.length) return null;
+  const ts = routine.templateSessions.find((t) => t.id === templateSessionId);
+  if (!ts) return null;
+  const order = { sets: 0, loadKg: 1, setLoad: 1, reps: 2, progress: 3 };
+  let items = ts.items.map((item) => {
+    const mine = chosen.filter((c) => c.itemId === item.id).sort((a, b) => (order[a.patch.field] ?? 1) - (order[b.patch.field] ?? 1));
+    if (!mine.length) return item;
+    const next = { ...item, setLoads: item.setLoads ? [...item.setLoads] : item.setLoads };
+    mine.forEach(({ patch }) => {
+      switch (patch.field) {
+        case 'sets':
+          if (next.loadMode === 'progressive') {
+            next.setLoads = Array.from({ length: patch.value }, (_, i) => next.setLoads?.[i] ?? patch.loads[i] ?? next.setLoads?.at(-1) ?? next.loadKg);
+          }
+          next.sets = patch.value;
+          break;
+        case 'setLoad':
+          if (next.setLoads && patch.index < next.setLoads.length) next.setLoads[patch.index] = patch.value;
+          break;
+        case 'progress':
+          if (next.loadMode === 'progressive' && next.setLoads) next.setLoads = next.setLoads.map((v) => Math.round((v + patch.delta) * 100) / 100);
+          next.loadKg = Math.round((next.loadKg + patch.delta) * 100) / 100;
+          if (patch.delta > 0) next.reps = next.repMin; // doble progresión: tras subir peso, vuelta al mínimo
+          break;
+        default:
+          next[patch.field] = patch.value;
+      }
+    });
+    if (next.loadMode === 'progressive' && next.setLoads?.length) next.loadKg = Math.max(...next.setLoads);
+    return next;
+  });
+  chosen.filter((c) => c.kind === 'add').forEach((c) => items.push(c.patch.item));
+  return routine.templateSessions.map((t) => (t.id === ts.id ? { ...t, items } : t));
 }
 
 // Siguiente índice de la secuencia tras finalizar una sesión.

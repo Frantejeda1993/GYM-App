@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { createExercise, updateExercise } from '../lib/db';
@@ -44,6 +44,7 @@ function ExerciseView({ exercise: e }) {
         {e.secondaryMuscles?.length > 0 && (
           <div className="kv"><span>Secundarios</span><MuscleChips secondary={e.secondaryMuscles} /></div>
         )}
+        <p><Link className="link" to={`/progreso/${encodeURIComponent(e.id)}`}>Ver mi progreso</Link></p>
         <p className="muted small">
           {e.source === 'seed' ? 'Catálogo base (free-exercise-db)' : `Creado por ${e.createdByName || 'otro usuario'}`}
         </p>

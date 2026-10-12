@@ -1,27 +1,42 @@
 import { useState } from 'react';
 import { Modal, Stepper } from './ui';
-import { LOAD_TYPES, inputToStored, storedToInput, describeLoad } from '../lib/load';
+import { LOAD_TYPES, inputToStored, storedToInput, describeLoad, describeItemLoad } from '../lib/load';
 import { CARDIO_TYPES } from '../lib/routine';
 import MuscleChips from './MuscleChips';
 import ExerciseThumb from './ExerciseThumb';
 
 export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }) {
   const lt = exercise?.loadType || 'total';
+  const toInput = (v) => storedToInput(v, lt, item.barKg);
   const [f, setF] = useState({
     sets: item.sets,
     repMin: item.repMin,
     repMax: item.repMax,
     reps: item.reps ?? '',
     barKg: item.barKg,
-    input: storedToInput(item.loadKg, lt, item.barKg),
+    loadMode: item.loadMode || 'fixed',
+    input: toInput(item.loadKg),
+    // Pesos por serie en unidades de entrada (por lado / por mano / total)
+    inputs: Array.from({ length: item.sets }, (_, i) => toInput(item.setLoads?.[i] ?? item.setLoads?.at(-1) ?? item.loadKg)),
     restSec: item.restSec,
     incrementKg: item.incrementKg,
   });
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
-  const loadKg = inputToStored(f.input, lt, f.barKg);
+  const setSets = (v) =>
+    setF((x) => {
+      const n = Math.max(1, Number(v) || 1);
+      const inputs = Array.from({ length: n }, (_, i) => x.inputs[i] ?? x.inputs.at(-1) ?? x.input);
+      return { ...x, sets: n, inputs };
+    });
+  const setInputAt = (i) => (v) => setF((x) => ({ ...x, inputs: x.inputs.map((old, j) => (j === i ? v : old)) }));
+
+  const progressive = f.loadMode === 'progressive';
+  const setLoads = f.inputs.map((v) => inputToStored(v, lt, f.barKg));
+  const loadKg = progressive ? Math.max(...setLoads) : inputToStored(f.input, lt, f.barKg);
   const rangeOk = Number(f.repMin) >= 1 && Number(f.repMin) <= Number(f.repMax);
   const reps = f.reps === '' || Number(f.reps) === 0 ? null : Number(f.reps);
   const repsOutside = reps != null && rangeOk && (reps < Number(f.repMin) || reps > Number(f.repMax));
+  const step = lt === 'barbell' ? 1.25 : lt === 'dumbbell' ? 1 : 2.5;
 
   const save = () =>
     rangeOk &&
@@ -32,6 +47,8 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
       repMax: Number(f.repMax),
       reps,
       barKg: lt === 'barbell' ? Number(f.barKg) : 0,
+      loadMode: f.loadMode,
+      setLoads: progressive ? setLoads : null,
       loadKg,
       restSec: Number(f.restSec),
       incrementKg: Number(f.incrementKg),
@@ -55,7 +72,7 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
         </div>
       )}
       <div className="grid-2">
-        <Stepper label="Series" value={f.sets} onChange={set('sets')} min={1} max={20} />
+        <Stepper label="Series" value={f.sets} onChange={setSets} min={1} max={20} />
         <span />
         <Stepper label="Reps mínimo" value={f.repMin} onChange={set('repMin')} min={1} max={100} />
         <Stepper label="Reps máximo" value={f.repMax} onChange={set('repMax')} min={1} max={100} />
@@ -71,11 +88,36 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
           : 'Las que haces hoy dentro del rango. Si lo dejas vacío, se parte del mínimo.'}
       </p>
 
-      <div className="grid-2">
-        <Stepper label={LOAD_TYPES[lt].input} value={f.input} onChange={set('input')} step={lt === 'barbell' ? 1.25 : lt === 'dumbbell' ? 1 : 2.5} />
-        {lt === 'barbell' ? <Stepper label="Barra kg" value={f.barKg} onChange={set('barKg')} step={2.5} /> : <span />}
+      <div className="field mt8">
+        <span>Peso</span>
+        <div className="segmented">
+          <button type="button" className={!progressive ? 'on' : ''} onClick={() => set('loadMode')('fixed')}>Fijo</button>
+          <button type="button" className={progressive ? 'on' : ''} onClick={() => setF((x) => ({ ...x, loadMode: 'progressive', inputs: x.inputs.map(() => x.input) }))}>Progresivo</button>
+        </div>
+        <span className="muted small">{progressive ? 'Un peso distinto en cada serie (pirámide).' : 'El mismo peso en todas las series.'}</span>
       </div>
-      <p className="muted small load-preview">{describeLoad(loadKg, lt, f.barKg)}</p>
+
+      {lt === 'barbell' && (
+        <div className="grid-2">
+          <Stepper label="Barra kg" value={f.barKg} onChange={set('barKg')} step={2.5} />
+          <span />
+        </div>
+      )}
+      {progressive ? (
+        <div className="grid-2">
+          {f.inputs.map((v, i) => (
+            <Stepper key={i} label={`Serie ${i + 1} · ${LOAD_TYPES[lt].input}`} value={v} onChange={setInputAt(i)} step={step} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid-2">
+          <Stepper label={LOAD_TYPES[lt].input} value={f.input} onChange={set('input')} step={step} />
+          <span />
+        </div>
+      )}
+      <p className="muted small load-preview">
+        {progressive ? describeItemLoad({ loadMode: 'progressive', setLoads, barKg: f.barKg }, lt) : describeLoad(loadKg, lt, f.barKg)}
+      </p>
 
       <div className="grid-2">
         <Stepper label="Descanso (s)" value={f.restSec} onChange={set('restSec')} step={15} min={0} max={900} />
@@ -83,7 +125,7 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
       </div>
       <p className="muted small">
         Progresión: si completas {f.repMax} reps en todas las series, la app propondrá subir {String(f.incrementKg).replace('.', ',')} kg
-        {lt === 'barbell' ? ' en total' : lt === 'dumbbell' ? ' por mancuerna' : ''}.
+        {lt === 'barbell' ? ' en total' : lt === 'dumbbell' ? ' por mancuerna' : ''}{progressive ? ' en cada serie' : ''}.
       </p>
     </Modal>
   );

@@ -5,7 +5,7 @@ import { useData } from '../data';
 import { saveRoutine } from '../lib/db';
 import { now } from '../lib/dates';
 import { WEEKDAYS, sequenceLetter, newSession, newStrengthItem, newCardioItem, cardioSummary, setsLabel } from '../lib/routine';
-import { describeLoad } from '../lib/load';
+import { describeLoad, describeItemLoad } from '../lib/load';
 import { Header, Modal, Empty } from '../components/ui';
 import ExerciseList from '../components/ExerciseList';
 import ExerciseThumb from '../components/ExerciseThumb';
@@ -185,7 +185,7 @@ function SessionEditor({ session, onChange }) {
                   <>
                     <span className="item-title">{ex?.name || 'Ejercicio no disponible'}</span>
                     <span className="item-sub">
-                      {setsLabel(it)} · {describeLoad(it.loadKg, ex?.loadType, it.barKg)}
+                      {setsLabel(it)} · {describeItemLoad(it, ex?.loadType)}
                     </span>
                   </>
                 ) : (

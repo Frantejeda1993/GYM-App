@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { saveSessionProgress, finalizeSession, discardSession } from '../lib/db';
-import { sessionItems, countSets, anyMarked, templateChanges, adhocEntry, adhocCardio } from '../lib/sessions';
+import { sessionItems, countSets, anyMarked, computeChanges, applyChanges, defaultAccepted, adhocEntry, adhocCardio } from '../lib/sessions';
 import { describeLoad, inputToStored, storedToInput } from '../lib/load';
 import { newStrengthItem, newCardioItem, CARDIO_TYPES } from '../lib/routine';
 import { toISODate, now, formatDay } from '../lib/dates';
@@ -34,10 +34,11 @@ export default function SessionPage() {
 function ActiveSession({ initial }) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { exerciseById, routineById } = useData();
+  const { exerciseById, routineById, sessions } = useData();
+  const [params] = useSearchParams();
   const [s, setS] = useState(() => ({ ...initial, entries: initial.entries || [], cardio: initial.cardio || [] }));
   const [rest, setRest] = useState(null); // { end, total }
-  const [modal, setModal] = useState(null); // 'all' | 'add' | 'finish'
+  const [modal, setModal] = useState(params.get('finalizar') ? 'finish' : null); // 'all' | 'add' | 'finish'
   const dirty = useRef(false);
   const routine = routineById(s.routineId);
 
@@ -166,10 +167,11 @@ function ActiveSession({ initial }) {
         <FinishModal
           session={s}
           routine={routine}
+          sessions={sessions}
           onClose={() => setModal(null)}
-          onFinish={() => {
+          onFinish={(changes, accepted) => {
             dirty.current = false;
-            finalizeSession(user.uid, s, routine, templateChanges(s, routine, describeLoad));
+            finalizeSession(user.uid, s, routine, routine ? applyChanges(routine, s.templateSessionId, changes, accepted) : null);
             navigate('/');
           }}
           onDiscard={() => {
@@ -370,18 +372,31 @@ function AddModal({ onClose, onAddExercise, onAddCardio }) {
   );
 }
 
-function FinishModal({ session, routine, onClose, onFinish, onDiscard }) {
+function FinishModal({ session, routine, sessions, onClose, onFinish, onDiscard }) {
   const { done, total } = countSets(session);
   const cardioPending = session.cardio.filter((c) => !c.done).length;
-  const changes = useMemo(() => templateChanges(session, routine, describeLoad), [session, routine]);
+  const changes = useMemo(() => computeChanges(session, routine, describeLoad, sessions), [session, routine, sessions]);
+  const [accepted, setAccepted] = useState(() => defaultAccepted(changes));
+  const toggle = (id) => setAccepted((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const marked = anyMarked(session);
+  const progression = changes.filter((c) => c.kind === 'progression');
+  const ups = changes.filter((c) => c.kind !== 'progression' && !c.down);
+  const downs = changes.filter((c) => c.kind !== 'progression' && c.down);
+
+  const Toggle = ({ c }) => (
+    <label className="toggle-row">
+      <input type="checkbox" checked={accepted.has(c.id)} onChange={() => toggle(c.id)} />
+      <span><strong>{c.label}:</strong> {c.detail}</span>
+    </label>
+  );
+
   return (
     <Modal
       title="Finalizar sesión"
       onClose={onClose}
       footer={
         marked ? (
-          <button className="btn primary wide" onClick={onFinish}>Finalizar</button>
+          <button className="btn primary wide" onClick={() => onFinish(changes, accepted)}>Finalizar</button>
         ) : (
           <button className="btn danger-ghost wide" onClick={onDiscard}>Descartar sesión</button>
         )
@@ -399,16 +414,28 @@ function FinishModal({ session, routine, onClose, onFinish, onDiscard }) {
               {cardioPending > 0 && `${cardioPending} cardio sin marcar`} quedarán como no realizados.
             </p>
           )}
-          {changes ? (
-            <>
-              <p className="filter-label">Se actualizará la rutina para las próximas sesiones:</p>
-              <ul className="plain-list">
-                {changes.changes.map((c, i) => <li key={i}><strong>{c.label}:</strong> {c.detail}</li>)}
-              </ul>
-            </>
-          ) : (
-            <p className="muted small">Sin cambios en la rutina.</p>
+          {progression.length > 0 && (
+            <div className="change-block progression">
+              <p className="filter-label">Progresión de carga</p>
+              {progression.map((c) => <Toggle key={c.id} c={c} />)}
+            </div>
           )}
+          {ups.length > 0 && (
+            <div className="change-block">
+              <p className="filter-label">Se actualiza en la rutina</p>
+              <ul className="plain-list">
+                {ups.map((c) => <li key={c.id}><strong>{c.label}:</strong> {c.detail}</li>)}
+              </ul>
+            </div>
+          )}
+          {downs.length > 0 && (
+            <div className="change-block">
+              <p className="filter-label">Bajó respecto al plan · ¿actualizar la rutina?</p>
+              {downs.map((c) => <Toggle key={c.id} c={c} />)}
+              <p className="muted small">Si no lo marcas, la rutina mantiene el valor anterior.</p>
+            </div>
+          )}
+          {!changes.length && <p className="muted small">Sin cambios en la rutina.</p>}
           <p className="muted small">Una vez finalizada, la sesión no se puede editar.</p>
         </>
       )}

@@ -44,3 +44,11 @@ export function describeLoad(stored, loadType, barKg = 0) {
       return `${fmt(s)} kg`;
   }
 }
+
+// Carga de un ejercicio de la plantilla: fija o progresiva (un peso por serie).
+export function describeItemLoad(item, loadType) {
+  if (item.loadMode !== 'progressive' || !item.setLoads?.length) return describeLoad(item.loadKg, loadType, item.barKg);
+  const vals = item.setLoads.map((v) => fmt(storedToInput(v, loadType, item.barKg)));
+  const unit = loadType === 'barbell' ? 'kg por lado' : loadType === 'dumbbell' ? 'kg por mano' : loadType === 'bodyweight' ? 'kg de lastre' : 'kg';
+  return `${vals.join(' / ')} ${unit}`;
+}
