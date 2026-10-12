@@ -1,0 +1,7 @@
+node_modules
+dist
+.DS_Store
+*.local
+# Nunca subir claves privadas de servicio
+*adminsdk*.json
+service-account*.json

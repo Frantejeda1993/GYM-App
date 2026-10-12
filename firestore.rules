@@ -1,0 +1,50 @@
+rules_version = '2';
+
+// Reglas de seguridad de GYM App.
+// Para invitar a alguien: añade su email a la lista de invited() y publica las reglas
+// en Firebase → Firestore Database → Reglas.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function invited() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'frantejeda1993@gmail.com'
+        ];
+    }
+
+    function isOwner(uid) {
+      return invited() && request.auth.uid == uid;
+    }
+
+    // Datos personales: solo el propio usuario.
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // Sesiones: una sesión finalizada (status 'done') es inmutable.
+      match /sessions/{sessionId} {
+        allow read, create: if isOwner(uid);
+        allow update, delete: if isOwner(uid) && resource.data.status != 'done';
+      }
+
+      // routines, weekOverrides, bodyMetrics
+      match /{sub}/{docId} {
+        allow read, write: if isOwner(uid) && sub != 'sessions';
+      }
+    }
+
+    // Catálogo compartido de ejercicios creados por usuarios.
+    match /exercises/{id} {
+      allow read: if invited();
+      allow create: if invited()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.source == 'user';
+      allow update: if invited()
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.source == 'user';
+      allow delete: if false; // se archivan, no se borran
+    }
+  }
+}
