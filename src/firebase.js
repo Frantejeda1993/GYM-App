@@ -22,5 +22,6 @@ export const auth = getAuth(app);
 
 // Caché persistente: la app funciona sin conexión y sincroniza al volver la señal.
 export const db = initializeFirestore(app, {
+  ignoreUndefinedProperties: true,
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });

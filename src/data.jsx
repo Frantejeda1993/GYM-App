@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { onSnapshot } from 'firebase/firestore';
 import seed from './data/exercises.json';
-import { exercisesCol, routinesCol } from './lib/db';
+import { exercisesCol, routinesCol, sessionsCol, weekOverrideDoc } from './lib/db';
 import { normalize } from './lib/text';
 import { useAuth } from './auth';
 
@@ -30,7 +30,9 @@ export function DataProvider({ children }) {
   const { user, status } = useAuth();
   const [userExercises, setUserExercises] = useState([]);
   const [routines, setRoutines] = useState([]);
-  const [loaded, setLoaded] = useState({ ex: false, rt: false });
+  const [sessions, setSessions] = useState([]);
+  const [weekOverride, setWeekOverride] = useState(null);
+  const [loaded, setLoaded] = useState({ ex: false, rt: false, ss: false });
 
   useEffect(() => {
     if (!user || status !== 'ready') return undefined;
@@ -47,9 +49,16 @@ export function DataProvider({ children }) {
       );
       setLoaded((l) => ({ ...l, rt: true }));
     });
+    const unSs = onSnapshot(sessionsCol(user.uid), (snap) => {
+      setSessions(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date < b.date ? 1 : -1)));
+      setLoaded((l) => ({ ...l, ss: true }));
+    });
+    const unWo = onSnapshot(weekOverrideDoc(user.uid), (snap) => setWeekOverride(snap.exists() ? snap.data() : null));
     return () => {
       unEx();
       unRt();
+      unSs();
+      unWo();
     };
   }, [user, status]);
 
@@ -65,9 +74,12 @@ export function DataProvider({ children }) {
       userExercises,
       routines,
       activeRoutine: routines.find((r) => r.active) || null,
-      loaded: loaded.ex && loaded.rt,
+      routineById: (id) => routines.find((r) => r.id === id) || null,
+      sessions,
+      weekOverride,
+      loaded: loaded.ex && loaded.rt && loaded.ss,
     };
-  }, [userExercises, routines, loaded]);
+  }, [userExercises, routines, sessions, weekOverride, loaded]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

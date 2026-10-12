@@ -9,6 +9,7 @@ import ExerciseForm from './pages/ExerciseForm';
 import Routines from './pages/Routines';
 import RoutineEditor from './pages/RoutineEditor';
 import TabBar from './components/TabBar';
+import SessionPage from './pages/Session';
 
 export default function App() {
   const { status } = useAuth();
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/ejercicios/nuevo" element={<ExerciseForm />} />
           <Route path="/ejercicios/:id" element={<ExerciseForm />} />
           <Route path="/perfil" element={<Profile />} />
+          <Route path="/sesion/:id" element={<SessionPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

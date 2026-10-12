@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { saveRoutine } from '../lib/db';
+import { now } from '../lib/dates';
 import { WEEKDAYS, sequenceLetter, newSession, newStrengthItem, newCardioItem, cardioSummary, setsLabel } from '../lib/routine';
 import { describeLoad } from '../lib/load';
 import { Header, Modal, Empty } from '../components/ui';
@@ -65,6 +66,10 @@ export default function RoutineEditor() {
       data.restDays = [];
     }
     if (isNew) data.active = routines.length === 0; // la primera rutina queda activa
+    if (isNew && routines.length === 0) {
+      data.active = true; // la primera rutina queda activa
+      data.activatedAt = now();
+    }
     saveRoutine(user.uid, data);
     setDirty(false);
     navigate('/rutinas');
