@@ -6,6 +6,8 @@ import { createExercise, updateExercise } from '../lib/db';
 import { MUSCLE_KEYS, muscleLabel } from '../lib/muscles';
 import { LOAD_TYPES, LOAD_TYPE_KEYS } from '../lib/load';
 import { similarity } from '../lib/text';
+import { EQUIPMENT, EQUIPMENT_KEYS, equipmentLabel } from '../lib/equipment';
+import { resizeImage } from '../lib/image';
 import { Header, Stepper, Empty } from '../components/ui';
 import MuscleChips from '../components/MuscleChips';
 
@@ -36,7 +38,8 @@ function ExerciseView({ exercise: e }) {
       <Header title="Ejercicio" back />
       <div className="card">
         <h2 className="card-title">{e.name}</h2>
-        <p className="muted">{LOAD_TYPES[e.loadType]?.label}{e.loadType === 'barbell' && e.defaultBarKg ? ` · barra ${e.defaultBarKg} kg` : ''}</p>
+        <Frames images={e.images} />
+        <p className="muted">{equipmentLabel(e.equipment)} · {LOAD_TYPES[e.loadType]?.label}{e.loadType === 'barbell' && e.defaultBarKg ? ` · barra ${e.defaultBarKg} kg` : ''}</p>
         <div className="kv"><span>Músculos principales</span><MuscleChips primary={e.primaryMuscles} /></div>
         {e.secondaryMuscles?.length > 0 && (
           <div className="kv"><span>Secundarios</span><MuscleChips secondary={e.secondaryMuscles} /></div>
@@ -49,9 +52,26 @@ function ExerciseView({ exercise: e }) {
   );
 }
 
+function Frames({ images = [] }) {
+  if (!images.length) return null;
+  return (
+    <div className={images.length > 1 ? 'frames' : 'frames single'}>
+      {images.map((src, i) => (
+        <figure key={src}>
+          <img src={src} alt="" />
+          {images.length > 1 && <figcaption>{i === 0 ? 'Inicio' : 'Final'}</figcaption>}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
 function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
   const [name, setName] = useState(existing?.name || '');
+  const [equipment, setEquipment] = useState(existing?.equipment || 'barbell');
   const [loadType, setLoadType] = useState(existing?.loadType || 'barbell');
+  const [imageData, setImageData] = useState(existing?.imageData || null);
+  const [imgError, setImgError] = useState('');
   const [barKg, setBarKg] = useState(existing?.defaultBarKg ?? profile?.defaultBarKg ?? 20);
   const [primary, setPrimary] = useState(existing?.primaryMuscles || []);
   const [secondary, setSecondary] = useState(existing?.secondaryMuscles || []);
@@ -90,7 +110,8 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
       defaultBarKg: loadType === 'barbell' ? Number(barKg) || 0 : null,
       primaryMuscles: primary,
       secondaryMuscles: secondary,
-      equipment: existing?.equipment || 'other',
+      equipment,
+      imageData: imageData || null,
     };
     if (existing) updateExercise(existing.id, data);
     else createExercise(user, data);
@@ -125,6 +146,48 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
             <button type="button" className="btn ghost" onClick={() => setIgnoreSimilar(true)}>No es ninguno, crear igualmente</button>
           </div>
         )}
+
+        <div className="field">
+          <span>Equipamiento</span>
+          <div className="muscle-grid">
+            {EQUIPMENT_KEYS.map((k) => (
+              <button
+                type="button"
+                key={k}
+                className={equipment === k ? 'chip-btn primary' : 'chip-btn'}
+                onClick={() => { setEquipment(k); setLoadType(EQUIPMENT[k].loadType); }}
+              >
+                {equipmentLabel(k)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <span>Foto (opcional)</span>
+          <div className="photo-field">
+            {imageData && <img src={imageData} alt="" />}
+            <label className="btn small file-btn">
+              {imageData ? 'Cambiar' : 'Añadir foto'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (ev) => {
+                  const file = ev.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    setImgError('');
+                    setImageData(await resizeImage(file));
+                  } catch (err) {
+                    setImgError(err.message);
+                  }
+                }}
+              />
+            </label>
+            {imageData && <button type="button" className="btn small danger-ghost" onClick={() => setImageData(null)}>Quitar</button>}
+          </div>
+          {imgError && <p className="error small">{imgError}</p>}
+        </div>
 
         <div className="field">
           <span>Tipo de carga</span>

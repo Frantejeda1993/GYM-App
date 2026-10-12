@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
-import { plannedSessionFor, WEEKDAYS, weekdayIndex, sequenceLetter, cardioSummary } from '../lib/routine';
+import { plannedSessionFor, WEEKDAYS, weekdayIndex, sequenceLetter, cardioSummary, setsLabel } from '../lib/routine';
 import { describeLoad } from '../lib/load';
 import { Header, Empty } from '../components/ui';
+import ExerciseThumb from '../components/ExerciseThumb';
 
 export default function Today() {
   const { profile } = useAuth();
@@ -29,14 +30,17 @@ export default function Today() {
                 {activeRoutine.mode === 'sequential' && `${sequenceLetter(activeRoutine.nextSequenceIndex || 0)} · `}
                 {session.name}
               </h2>
-              <ul className="plain-list">
+              <ul className="today-list">
                 {session.items.map((it) => {
                   if (it.kind === 'cardio') return <li key={it.id}>Cardio · {it.cardioType} <span className="muted">{cardioSummary(it)}</span></li>;
                   const ex = exerciseById(it.exerciseId);
                   return (
-                    <li key={it.id}>
-                      {ex?.name || 'Ejercicio'}{' '}
-                      <span className="muted">{it.sets} × {it.repMin}–{it.repMax} · {describeLoad(it.loadKg, ex?.loadType, it.barKg)}</span>
+                    <li key={it.id} className="today-item">
+                      <ExerciseThumb exercise={ex} size={48} />
+                      <span className="row-text">
+                        <span className="row-title">{ex?.name || 'Ejercicio'}</span>
+                        <span className="row-sub">{setsLabel(it)} · {describeLoad(it.loadKg, ex?.loadType, it.barKg)}</span>
+                      </span>
                     </li>
                   );
                 })}

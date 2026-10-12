@@ -31,6 +31,14 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,json}'],
         navigateFallback: 'index.html',
+        // Las imágenes del catálogo (~10 MB) no se precargan: se guardan al verlas por primera vez.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/ex/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'exercise-images', expiration: { maxEntries: 1600 } },
+          },
+        ],
       },
     }),
   ],

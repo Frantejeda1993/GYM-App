@@ -20,7 +20,11 @@ const SEED = seed.map((x) => ({
   source: 'seed',
   archived: false,
   nameNormalized: normalize(x.n),
+  images: Array.from({ length: x.i || 0 }, (_, f) => `${import.meta.env.BASE_URL}ex/${encodeURIComponent(x.id)}-${f}.webp`),
 }));
+
+// Los ejercicios de usuario guardan una foto pequeña (data URL) en imageData.
+const withImages = (e) => ({ ...e, images: e.imageData ? [e.imageData] : [] });
 
 export function DataProvider({ children }) {
   const { user, status } = useAuth();
@@ -31,7 +35,7 @@ export function DataProvider({ children }) {
   useEffect(() => {
     if (!user || status !== 'ready') return undefined;
     const unEx = onSnapshot(exercisesCol(), (snap) => {
-      setUserExercises(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setUserExercises(snap.docs.map((d) => withImages({ id: d.id, ...d.data() })));
       setLoaded((l) => ({ ...l, ex: true }));
     });
     const unRt = onSnapshot(routinesCol(user.uid), (snap) => {

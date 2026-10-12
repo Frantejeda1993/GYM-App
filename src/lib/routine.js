@@ -54,3 +54,9 @@ export function cardioSummary(c) {
   if (c.kcal) parts.push(`${c.kcal} kcal`);
   return parts.join(' · ') || 'Sin objetivo';
 }
+
+// "3 × 6 (5–8)" si hay repeticiones actuales; "3 × 5–8" si solo hay rango.
+export function setsLabel(it) {
+  const range = `${it.repMin}–${it.repMax}`;
+  return it.reps ? `${it.sets} × ${it.reps} (${range})` : `${it.sets} × ${range}`;
+}

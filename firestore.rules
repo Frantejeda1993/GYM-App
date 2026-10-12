@@ -34,16 +34,25 @@ service cloud.firestore {
       }
     }
 
+    // Foto opcional del ejercicio: data URL de menos de ~150 KB.
+    function smallImage() {
+      return !('imageData' in request.resource.data)
+        || request.resource.data.imageData == null
+        || request.resource.data.imageData.size() < 150000;
+    }
+
     // Catálogo compartido de ejercicios creados por usuarios.
     match /exercises/{id} {
       allow read: if invited();
       allow create: if invited()
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.source == 'user';
+        && request.resource.data.source == 'user'
+        && smallImage();
       allow update: if invited()
         && resource.data.createdBy == request.auth.uid
         && request.resource.data.createdBy == resource.data.createdBy
-        && request.resource.data.source == 'user';
+        && request.resource.data.source == 'user'
+        && smallImage();
       allow delete: if false; // se archivan, no se borran
     }
   }

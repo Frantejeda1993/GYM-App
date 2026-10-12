@@ -3,6 +3,7 @@ import { Modal, Stepper } from './ui';
 import { LOAD_TYPES, inputToStored, storedToInput, describeLoad } from '../lib/load';
 import { CARDIO_TYPES } from '../lib/routine';
 import MuscleChips from './MuscleChips';
+import ExerciseThumb from './ExerciseThumb';
 
 export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }) {
   const lt = exercise?.loadType || 'total';
@@ -10,6 +11,7 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
     sets: item.sets,
     repMin: item.repMin,
     repMax: item.repMax,
+    reps: item.reps ?? '',
     barKg: item.barKg,
     input: storedToInput(item.loadKg, lt, item.barKg),
     restSec: item.restSec,
@@ -18,6 +20,8 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
   const loadKg = inputToStored(f.input, lt, f.barKg);
   const rangeOk = Number(f.repMin) >= 1 && Number(f.repMin) <= Number(f.repMax);
+  const reps = f.reps === '' || Number(f.reps) === 0 ? null : Number(f.reps);
+  const repsOutside = reps != null && rangeOk && (reps < Number(f.repMin) || reps > Number(f.repMax));
 
   const save = () =>
     rangeOk &&
@@ -26,6 +30,7 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
       sets: Number(f.sets),
       repMin: Number(f.repMin),
       repMax: Number(f.repMax),
+      reps,
       barKg: lt === 'barbell' ? Number(f.barKg) : 0,
       loadKg,
       restSec: Number(f.restSec),
@@ -43,7 +48,12 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
         </>
       }
     >
-      {exercise && <MuscleChips primary={exercise.primaryMuscles} secondary={exercise.secondaryMuscles} />}
+      {exercise && (
+        <div className="today-item">
+          <ExerciseThumb exercise={exercise} size={64} />
+          <MuscleChips primary={exercise.primaryMuscles} secondary={exercise.secondaryMuscles} />
+        </div>
+      )}
       <div className="grid-2">
         <Stepper label="Series" value={f.sets} onChange={set('sets')} min={1} max={20} />
         <span />
@@ -51,6 +61,15 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
         <Stepper label="Reps máximo" value={f.repMax} onChange={set('repMax')} min={1} max={100} />
       </div>
       {!rangeOk && <p className="error small">El mínimo no puede superar al máximo.</p>}
+      <div className="grid-2">
+        <Stepper label="Reps actuales (opcional)" value={f.reps} onChange={set('reps')} min={0} max={100} allowEmpty />
+        <span />
+      </div>
+      <p className="muted small">
+        {repsOutside
+          ? 'Fuera del rango: la progresión propondrá ajustar la carga.'
+          : 'Las que haces hoy dentro del rango. Si lo dejas vacío, se parte del mínimo.'}
+      </p>
 
       <div className="grid-2">
         <Stepper label={LOAD_TYPES[lt].input} value={f.input} onChange={set('input')} step={lt === 'barbell' ? 1.25 : lt === 'dumbbell' ? 1 : 2.5} />

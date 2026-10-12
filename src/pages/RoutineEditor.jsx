@@ -3,10 +3,11 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { saveRoutine } from '../lib/db';
-import { WEEKDAYS, sequenceLetter, newSession, newStrengthItem, newCardioItem, cardioSummary } from '../lib/routine';
+import { WEEKDAYS, sequenceLetter, newSession, newStrengthItem, newCardioItem, cardioSummary, setsLabel } from '../lib/routine';
 import { describeLoad } from '../lib/load';
 import { Header, Modal, Empty } from '../components/ui';
 import ExerciseList from '../components/ExerciseList';
+import ExerciseThumb from '../components/ExerciseThumb';
 import { StrengthItemEditor, CardioItemEditor } from '../components/ItemEditors';
 
 export default function RoutineEditor() {
@@ -173,12 +174,13 @@ function SessionEditor({ session, onChange }) {
           const ex = it.kind === 'strength' ? exerciseById(it.exerciseId) : null;
           return (
             <li key={it.id} className="item">
+              {it.kind === 'strength' && <ExerciseThumb exercise={ex} size={44} />}
               <button className="item-main" onClick={() => setEditing(it.id)}>
                 {it.kind === 'strength' ? (
                   <>
                     <span className="item-title">{ex?.name || 'Ejercicio no disponible'}</span>
                     <span className="item-sub">
-                      {it.sets} × {it.repMin}–{it.repMax} · {describeLoad(it.loadKg, ex?.loadType, it.barKg)}
+                      {setsLabel(it)} · {describeLoad(it.loadKg, ex?.loadType, it.barKg)}
                     </span>
                   </>
                 ) : (

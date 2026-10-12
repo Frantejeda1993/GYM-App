@@ -1,7 +1,7 @@
 // Genera src/data/exercises.json a partir de free-exercise-db (dominio público).
 // Uso: node scripts/build-catalog.mjs <ruta a free-exercise-db/dist/exercises.json>
 // Fuente: https://github.com/yuhonas/free-exercise-db
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 const src = process.argv[2];
 if (!src) {
@@ -37,6 +37,8 @@ const out = raw
     s: x.secondaryMuscles,
     e: x.equipment || 'other',
     ...loadTypeFor(x.equipment),
+    // número de imágenes disponibles en public/ex (generadas con build-thumbs.py)
+    i: ['0', '1'].filter((f) => existsSync(`public/ex/${x.id}-${f}.webp`)).length,
   }))
   .sort((a, b) => a.n.localeCompare(b.n));
 
