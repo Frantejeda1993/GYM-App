@@ -7,6 +7,7 @@ import { formatDay, parseISODate } from '../lib/dates';
 import { Header, Empty } from '../components/ui';
 import ExerciseThumb from '../components/ExerciseThumb';
 import LineChart from '../components/LineChart';
+import MuscleDashboard from '../components/MuscleDashboard';
 
 const shortDate = (iso) => parseISODate(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 const fmt = (v) => String(v).replace('.', ',');
@@ -18,6 +19,8 @@ export default function Progress() {
   return (
     <div className="page">
       <Header title="Progreso" />
+      <MuscleDashboard />
+      <h2 className="section-title">Por ejercicio</h2>
       {loaded && !list.length && (
         <Empty title="Aún no hay sesiones finalizadas">
           <p className="muted small">Cuando finalices tu primera sesión verás aquí la evolución de cada ejercicio.</p>

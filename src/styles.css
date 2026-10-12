@@ -294,3 +294,25 @@ p.warn-box { padding: 10px 12px; }
 .hist { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .hist th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 4px; border-bottom: 1px solid var(--line); }
 .hist td { padding: 8px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+
+/* Dashboard muscular */
+.dash { margin-bottom: 24px; }
+.week-nav { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin-bottom: 10px; }
+.week-nav .icon-btn { font-size: 28px; color: var(--text); }
+.week-label { display: flex; flex-direction: column; align-items: center; }
+.small-seg button { min-height: 36px; }
+.bodies { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.bodies figure { margin: 0; display: flex; flex-direction: column; align-items: center; }
+.bodies figcaption { font-size: 13px; font-weight: 700; margin-top: 4px; }
+.bodymap { width: 100%; max-height: 360px; }
+.body-tip { min-height: 20px; text-align: center; font-size: 13px; margin: 8px 0; }
+.legend { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.legend-item i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1px solid #3a4048; }
+.center { text-align: center; }
+.section-title { font-size: 18px; margin: 8px 0 4px; }
+.muscle-table td:nth-child(2), .muscle-table td:nth-child(3) { text-align: right; }
+.muscle-table th:nth-child(2), .muscle-table th:nth-child(3) { text-align: right; }
+.bar-cell { width: 34%; }
+.mini-bar { display: block; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin-top: 4px; }
+.mini-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
