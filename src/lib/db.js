@@ -5,6 +5,7 @@ import {
   addDoc,
   updateDoc,
   writeBatch,
+  deleteDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -16,6 +17,7 @@ export const userDoc = (uid) => doc(db, 'users', uid);
 export const routinesCol = (uid) => collection(db, 'users', uid, 'routines');
 export const exercisesCol = () => collection(db, 'exercises');
 export const sessionsCol = (uid) => collection(db, 'users', uid, 'sessions');
+export const bodyCol = (uid) => collection(db, 'users', uid, 'bodyMetrics');
 export const weekOverrideDoc = (uid, key = isoWeekKey()) => doc(db, 'users', uid, 'weekOverrides', key);
 
 // Las escrituras no se esperan: con la caché offline se aplican al instante
@@ -167,6 +169,18 @@ export function applyReorganization(uid, routine, override, missed, assignments,
     batch.update(doc(db, 'users', uid, 'routines', routine.id), { templateSessions, restDays, updatedAt: serverTimestamp() });
   }
   return fireAndForget(batch.commit());
+}
+
+// ---------- Composición corporal ----------
+
+export function saveBodyMetric(uid, id, data) {
+  const ref = id ? doc(db, 'users', uid, 'bodyMetrics', id) : doc(bodyCol(uid));
+  fireAndForget(setDoc(ref, { ...data, updatedAt: serverTimestamp() }));
+  return ref.id;
+}
+
+export function deleteBodyMetric(uid, id) {
+  return fireAndForget(deleteDoc(doc(db, 'users', uid, 'bodyMetrics', id)));
 }
 
 export { addDoc, weekDates };

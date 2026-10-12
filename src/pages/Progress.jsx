@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useData } from '../data';
 import { exerciseHistory, trainedExercises } from '../lib/progress';
 import { describeLoad } from '../lib/load';
@@ -8,6 +8,7 @@ import { Header, Empty } from '../components/ui';
 import ExerciseThumb from '../components/ExerciseThumb';
 import LineChart from '../components/LineChart';
 import MuscleDashboard from '../components/MuscleDashboard';
+import { BodyView } from './Body';
 
 const shortDate = (iso) => parseISODate(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 const fmt = (v) => String(v).replace('.', ',');
@@ -16,11 +17,21 @@ export default function Progress() {
   const navigate = useNavigate();
   const { sessions, exerciseById, loaded } = useData();
   const list = useMemo(() => trainedExercises(sessions), [sessions]);
+  const [params, setParams] = useSearchParams();
+  const view = params.get('vista') || 'musculos';
+  const tabs = [['musculos', 'Músculos'], ['ejercicios', 'Ejercicios'], ['cuerpo', 'Cuerpo']];
   return (
     <div className="page">
       <Header title="Progreso" />
-      <MuscleDashboard />
-      <h2 className="section-title">Por ejercicio</h2>
+      <div className="segmented three">
+        {tabs.map(([k, l]) => (
+          <button key={k} className={view === k ? 'on' : ''} onClick={() => setParams(k === 'musculos' ? {} : { vista: k }, { replace: true })}>{l}</button>
+        ))}
+      </div>
+      <div className="mt8" />
+      {view === 'musculos' && <MuscleDashboard />}
+      {view === 'cuerpo' && <BodyView />}
+      {view === 'ejercicios' && (<>
       {loaded && !list.length && (
         <Empty title="Aún no hay sesiones finalizadas">
           <p className="muted small">Cuando finalices tu primera sesión verás aquí la evolución de cada ejercicio.</p>
@@ -50,6 +61,7 @@ export default function Progress() {
           );
         })}
       </ul>
+      </>)}
     </div>
   );
 }
@@ -71,7 +83,7 @@ export function ProgressDetail() {
 
   return (
     <div className="page">
-      <Header title="Progreso" back="/progreso" />
+      <Header title="Progreso" back="/progreso?vista=ejercicios" />
       <div className="today-item">
         <ExerciseThumb exercise={ex || { name: history[0]?.name }} size={56} />
         <div className="row-text">

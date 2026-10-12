@@ -11,6 +11,7 @@ import RoutineEditor from './pages/RoutineEditor';
 import TabBar from './components/TabBar';
 import SessionPage from './pages/Session';
 import Progress, { ProgressDetail } from './pages/Progress';
+import BodyForm from './pages/Body';
 
 export default function App() {
   const { status } = useAuth();
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/sesion/:id" element={<SessionPage />} />
           <Route path="/progreso" element={<Progress />} />
           <Route path="/progreso/:id" element={<ProgressDetail />} />
+          <Route path="/cuerpo/:id" element={<BodyForm />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

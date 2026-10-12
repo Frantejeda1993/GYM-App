@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { onSnapshot } from 'firebase/firestore';
 import seed from './data/exercises.json';
-import { exercisesCol, routinesCol, sessionsCol, weekOverrideDoc } from './lib/db';
+import { exercisesCol, routinesCol, sessionsCol, weekOverrideDoc, bodyCol } from './lib/db';
 import { normalize } from './lib/text';
 import { useAuth } from './auth';
 
@@ -32,6 +32,7 @@ export function DataProvider({ children }) {
   const [routines, setRoutines] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [weekOverride, setWeekOverride] = useState(null);
+  const [bodyMetrics, setBodyMetrics] = useState([]);
   const [loaded, setLoaded] = useState({ ex: false, rt: false, ss: false });
 
   useEffect(() => {
@@ -54,7 +55,11 @@ export function DataProvider({ children }) {
       setLoaded((l) => ({ ...l, ss: true }));
     });
     const unWo = onSnapshot(weekOverrideDoc(user.uid), (snap) => setWeekOverride(snap.exists() ? snap.data() : null));
+    const unBm = onSnapshot(bodyCol(user.uid), (snap) =>
+      setBodyMetrics(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date < b.date ? 1 : -1))),
+    );
     return () => {
+      unBm();
       unEx();
       unRt();
       unSs();
@@ -77,9 +82,10 @@ export function DataProvider({ children }) {
       routineById: (id) => routines.find((r) => r.id === id) || null,
       sessions,
       weekOverride,
+      bodyMetrics,
       loaded: loaded.ex && loaded.rt && loaded.ss,
     };
-  }, [userExercises, routines, sessions, weekOverride, loaded]);
+  }, [userExercises, routines, sessions, weekOverride, bodyMetrics, loaded]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

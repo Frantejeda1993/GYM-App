@@ -316,3 +316,16 @@ p.warn-box { padding: 10px 12px; }
 .bar-cell { width: 34%; }
 .mini-bar { display: block; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin-top: 4px; }
 .mini-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.chart-legend { margin: 2px 0 6px; }
+.dot-swatch { width: 8px !important; height: 8px !important; border-radius: 50% !important; background: var(--muted); border: 0 !important; }
+.line-swatch { width: 16px !important; height: 3px !important; border-radius: 2px !important; background: var(--accent); border: 0 !important; }
+
+/* Composición corporal */
+.segmented.three { grid-template-columns: repeat(3, 1fr); }
+.segmented.four { grid-template-columns: repeat(4, 1fr); }
+.segmented.three button, .segmented.four button { min-height: 38px; font-size: 14px; }
+.metric-field { display: grid; grid-template-columns: 1fr 96px; gap: 8px; align-items: end; }
+.unit-seg { grid-template-columns: 1fr 1fr; }
+.unit-seg button { min-height: 40px; }
+.weigh-banner { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+.weigh-banner span { flex: 1; }

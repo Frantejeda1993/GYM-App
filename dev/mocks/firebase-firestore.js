@@ -56,3 +56,4 @@ export function onSnapshot(ref, cb) {
   setTimeout(run, 0);
   return () => subs.delete(run);
 }
+export async function deleteDoc(ref) { delete store[ref.path]; notify(); }

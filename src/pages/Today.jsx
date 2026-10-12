@@ -12,11 +12,12 @@ import {
 import { startSession, discardSession, skipMissedDays, applyReorganization } from '../lib/db';
 import { Header, Empty, Modal } from '../components/ui';
 import ExerciseThumb from '../components/ExerciseThumb';
+import { daysSinceWeight } from '../lib/body';
 
 export default function Today() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { activeRoutine, exerciseById, loaded, sessions, weekOverride, routineById } = useData();
+  const { activeRoutine, exerciseById, loaded, sessions, weekOverride, bodyMetrics } = useData();
   const [choosing, setChoosing] = useState(false);
   const [reorganizing, setReorganizing] = useState(false);
 
@@ -37,11 +38,32 @@ export default function Today() {
     navigate(`/sesion/${id}`);
   }
 
+  const sinceWeight = daysSinceWeight(bodyMetrics, today);
+  const [weighDismissed, setWeighDismissed] = useState(() => {
+    try { return localStorage.getItem('weigh-dismissed') === today; } catch { return false; }
+  });
+  const showWeigh = loaded && !weighDismissed && (sinceWeight == null || sinceWeight > (profile?.weighReminderDays ?? 14));
+
   if (!loaded) return <div className="page"><Header title={`Hola, ${profile?.name || ''}`} /></div>;
 
   return (
     <div className="page">
       <Header title={`Hola, ${profile?.name || ''}`} />
+
+      {showWeigh && (
+        <div className="weigh-banner" role="status">
+          <span>{sinceWeight == null ? 'Aún no has registrado tu peso.' : `Hace ${sinceWeight} días que no registras tu peso.`}</span>
+          <button className="btn small primary" onClick={() => navigate('/cuerpo/nuevo')}>Registrar</button>
+          <button
+            className="icon-btn small"
+            aria-label="Ocultar hoy"
+            onClick={() => {
+              try { localStorage.setItem('weigh-dismissed', today); } catch { /* sin almacenamiento */ }
+              setWeighDismissed(true);
+            }}
+          >✕</button>
+        </div>
+      )}
 
       {!activeRoutine && !inProgress && (
         <Empty title="No tienes una rutina activa">

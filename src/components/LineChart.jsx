@@ -1,13 +1,15 @@
 import { useState } from 'react';
 
 // Gráfico de línea de una serie (SVG propio, sin librerías). Toca un punto para ver el detalle.
-// points: [{ x: etiqueta, y: número, tip: texto }]
-export default function LineChart({ points, unit = '', height = 200, ariaLabel }) {
+// points: [{ x: etiqueta, y: número, tip: texto, avg?: número }]
+// Si los puntos traen `avg`, se dibujan las mediciones como puntos y la media como línea.
+export default function LineChart({ points, unit = '', height = 200, ariaLabel, avgLabel = 'Media 7 días', rawLabel = 'Medición' }) {
   const [active, setActive] = useState(points.length - 1);
   const W = 340;
   const H = height;
   const pad = { l: 40, r: 14, t: 16, b: 28 };
-  const ys = points.map((p) => p.y);
+  const hasAvg = points.some((p) => p.avg != null);
+  const ys = points.flatMap((p) => (hasAvg ? [p.y, p.avg] : [p.y]));
   let lo = Math.min(...ys);
   let hi = Math.max(...ys);
   if (lo === hi) {
@@ -22,7 +24,8 @@ export default function LineChart({ points, unit = '', height = 200, ariaLabel }
   for (let v = yMin; v <= yMax + 1e-9; v += step) ticks.push(Math.round(v * 100) / 100);
   const X = (i) => (points.length === 1 ? (pad.l + W - pad.r) / 2 : pad.l + (i * (W - pad.l - pad.r)) / (points.length - 1));
   const Y = (v) => pad.t + ((yMax - v) / (yMax - yMin)) * (H - pad.t - pad.b);
-  const path = points.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(' ');
+  const lineVal = (p) => (hasAvg ? p.avg : p.y);
+  const path = points.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(lineVal(p)).toFixed(1)}`).join(' ');
   const a = points[active];
   const fmt = (v) => String(v).replace('.', ',');
 
@@ -31,7 +34,7 @@ export default function LineChart({ points, unit = '', height = 200, ariaLabel }
       {a && (
         <figcaption className="chart-tip">
           <strong>{fmt(a.y)} {unit}</strong>
-          <span>{a.tip}</span>
+          <span>{hasAvg ? `media ${fmt(a.avg)} · ${a.tip}` : a.tip}</span>
         </figcaption>
       )}
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={ariaLabel}>
@@ -48,10 +51,20 @@ export default function LineChart({ points, unit = '', height = 200, ariaLabel }
         {points.map((p, i) => (
           <g key={i} onClick={() => setActive(i)} style={{ cursor: 'pointer' }}>
             <circle cx={X(i)} cy={Y(p.y)} r="14" fill="transparent" />
-            <circle cx={X(i)} cy={Y(p.y)} r={i === active ? 5.5 : 4} fill={i === active ? 'var(--accent)' : 'var(--bg)'} stroke="var(--accent)" strokeWidth="2" />
+            {hasAvg ? (
+              <circle cx={X(i)} cy={Y(p.y)} r={i === active ? 5 : 3.5} fill={i === active ? 'var(--text)' : 'var(--muted)'} stroke="var(--surface)" strokeWidth="2" />
+            ) : (
+              <circle cx={X(i)} cy={Y(p.y)} r={i === active ? 5.5 : 4} fill={i === active ? 'var(--accent)' : 'var(--bg)'} stroke="var(--accent)" strokeWidth="2" />
+            )}
           </g>
         ))}
       </svg>
+      {hasAvg && (
+        <div className="legend chart-legend">
+          <span className="legend-item"><i className="dot-swatch" />{rawLabel}</span>
+          <span className="legend-item"><i className="line-swatch" />{avgLabel}</span>
+        </div>
+      )}
     </figure>
   );
 }
