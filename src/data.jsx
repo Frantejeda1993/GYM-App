@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { onSnapshot } from 'firebase/firestore';
 import seed from './data/exercises.json';
-import { exercisesCol, routinesCol, sessionsCol, weekOverrideDoc, bodyCol } from './lib/db';
+import { exercisesCol, routinesCol, sessionsCol, weekOverrideDoc, bodyCol, exerciseNotesCol } from './lib/db';
 import { normalize } from './lib/text';
 import { useAuth } from './auth';
 
@@ -33,6 +33,7 @@ export function DataProvider({ children }) {
   const [sessions, setSessions] = useState([]);
   const [weekOverride, setWeekOverride] = useState(null);
   const [bodyMetrics, setBodyMetrics] = useState([]);
+  const [notes, setNotes] = useState({});
   const [loaded, setLoaded] = useState({ ex: false, rt: false, ss: false });
 
   useEffect(() => {
@@ -58,7 +59,11 @@ export function DataProvider({ children }) {
     const unBm = onSnapshot(bodyCol(user.uid), (snap) =>
       setBodyMetrics(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date < b.date ? 1 : -1))),
     );
+    const unNt = onSnapshot(exerciseNotesCol(user.uid), (snap) =>
+      setNotes(Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))),
+    );
     return () => {
+      unNt();
       unBm();
       unEx();
       unRt();
@@ -68,11 +73,17 @@ export function DataProvider({ children }) {
   }, [user, status]);
 
   const value = useMemo(() => {
-    const all = [...userExercises, ...SEED];
+    // Apodo y notas personales: displayName es lo que se muestra; name sigue siendo el original.
+    const personalize = (e) => {
+      const n = notes[e.id];
+      if (!n?.alias && !n?.notes) return { ...e, displayName: e.name };
+      return { ...e, alias: n.alias || '', notes: n.notes || '', displayName: n.alias || e.name, aliasNormalized: normalize(n.alias || '') };
+    };
+    const all = [...userExercises, ...SEED].map(personalize);
     const byId = new Map(all.map((e) => [e.id, e]));
     const catalog = all
       .filter((e) => !e.archived)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
     return {
       catalog,
       exerciseById: (id) => byId.get(id),
@@ -85,7 +96,7 @@ export function DataProvider({ children }) {
       bodyMetrics,
       loaded: loaded.ex && loaded.rt && loaded.ss,
     };
-  }, [userExercises, routines, sessions, weekOverride, bodyMetrics, loaded]);
+  }, [userExercises, routines, sessions, weekOverride, bodyMetrics, notes, loaded]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

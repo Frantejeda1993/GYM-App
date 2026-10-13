@@ -10,6 +10,7 @@ import { EQUIPMENT, EQUIPMENT_KEYS, equipmentLabel } from '../lib/equipment';
 import { resizeImage } from '../lib/image';
 import { Header, Stepper, Empty } from '../components/ui';
 import MuscleChips from '../components/MuscleChips';
+import { FrameAnimation, VideoLink, PersonalNotesEditor } from '../components/ExerciseInfo';
 
 export default function ExerciseForm() {
   const { id: rawId } = useParams();
@@ -37,8 +38,10 @@ function ExerciseView({ exercise: e }) {
     <div className="page">
       <Header title="Ejercicio" back />
       <div className="card">
-        <h2 className="card-title">{e.name}</h2>
-        <Frames images={e.images} />
+        <h2 className="card-title">{e.displayName}</h2>
+        {e.alias && <p className="muted small">{e.name}</p>}
+        <FrameAnimation images={e.images} />
+        <VideoLink exercise={e} />
         <p className="muted">{equipmentLabel(e.equipment)} · {LOAD_TYPES[e.loadType]?.label}{e.loadType === 'barbell' && e.defaultBarKg ? ` · barra ${e.defaultBarKg} kg` : ''}</p>
         <div className="kv"><span>Músculos principales</span><MuscleChips primary={e.primaryMuscles} /></div>
         {e.secondaryMuscles?.length > 0 && (
@@ -49,20 +52,9 @@ function ExerciseView({ exercise: e }) {
           {e.source === 'seed' ? 'Catálogo base (free-exercise-db)' : `Creado por ${e.createdByName || 'otro usuario'}`}
         </p>
       </div>
-    </div>
-  );
-}
-
-function Frames({ images = [] }) {
-  if (!images.length) return null;
-  return (
-    <div className={images.length > 1 ? 'frames' : 'frames single'}>
-      {images.map((src, i) => (
-        <figure key={src}>
-          <img src={src} alt="" />
-          {images.length > 1 && <figcaption>{i === 0 ? 'Inicio' : 'Final'}</figcaption>}
-        </figure>
-      ))}
+      <div className="card">
+        <PersonalNotesEditor key={e.id} exercise={e} />
+      </div>
     </div>
   );
 }
@@ -221,6 +213,11 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
         <button className="btn primary wide" disabled={!valid} onClick={save}>Guardar</button>
         {existing && <button className="btn danger-ghost wide" onClick={archive}>Archivar</button>}
       </div>
+      {existing && (
+        <div className="card mt8">
+          <PersonalNotesEditor key={existing.id} exercise={existing} />
+        </div>
+      )}
     </div>
   );
 }

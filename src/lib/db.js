@@ -18,6 +18,18 @@ export const routinesCol = (uid) => collection(db, 'users', uid, 'routines');
 export const exercisesCol = () => collection(db, 'exercises');
 export const sessionsCol = (uid) => collection(db, 'users', uid, 'sessions');
 export const bodyCol = (uid) => collection(db, 'users', uid, 'bodyMetrics');
+export const exerciseNotesCol = (uid) => collection(db, 'users', uid, 'exerciseNotes');
+
+// Apodo y notas personales de un ejercicio (solo visibles para el usuario).
+export function saveExerciseNote(uid, exerciseId, { alias, notes }) {
+  return fireAndForget(
+    setDoc(doc(db, 'users', uid, 'exerciseNotes', exerciseId), {
+      alias: (alias || '').trim(),
+      notes: (notes || '').trim(),
+      updatedAt: serverTimestamp(),
+    }),
+  );
+}
 export const weekOverrideDoc = (uid, key = isoWeekKey()) => doc(db, 'users', uid, 'weekOverrides', key);
 
 // Las escrituras no se esperan: con la caché offline se aplican al instante

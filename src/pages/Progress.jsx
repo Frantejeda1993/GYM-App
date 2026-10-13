@@ -49,7 +49,7 @@ export default function Progress() {
               <button className="row-btn with-thumb" onClick={() => navigate(`/progreso/${encodeURIComponent(x.exerciseId)}`)}>
                 <ExerciseThumb exercise={ex || { name: x.name }} />
                 <span className="row-text">
-                  <span className="row-title">{ex?.name || x.name}</span>
+                  <span className="row-title">{ex?.displayName || x.name}</span>
                   <span className="row-sub">
                     {x.count} {x.count === 1 ? 'sesión' : 'sesiones'} · última {shortDate(x.lastDate)}
                     {last != null && ` · 1RM ${fmt(last)} kg`}
@@ -87,7 +87,7 @@ export function ProgressDetail() {
       <div className="today-item">
         <ExerciseThumb exercise={ex || { name: history[0]?.name }} size={56} />
         <div className="row-text">
-          <span className="row-title">{ex?.name || 'Ejercicio'}</span>
+          <span className="row-title">{ex?.displayName || 'Ejercicio'}</span>
           <Link className="link small" to={`/ejercicios/${encodeURIComponent(exerciseId)}`}>Ver ficha</Link>
         </div>
       </div>
@@ -112,7 +112,7 @@ export function ProgressDetail() {
           </div>
 
           <p className="filter-label">{use1rm ? '1RM estimado por sesión (kg)' : 'Repeticiones máximas por sesión'}</p>
-          <LineChart points={points} unit={use1rm ? 'kg' : 'reps'} ariaLabel={`Evolución de ${ex?.name || 'ejercicio'}`} />
+          <LineChart points={points} unit={use1rm ? 'kg' : 'reps'} ariaLabel={`Evolución de ${ex?.displayName || 'ejercicio'}`} />
           {use1rm && <p className="muted small">1RM estimado con la fórmula de Epley a partir de la mejor serie (hasta 12 reps).{lt === 'dumbbell' ? ' En mancuernas, por mano.' : ''}</p>}
 
           <p className="filter-label mt8">Sesiones</p>

@@ -171,7 +171,7 @@ function PlannedCard({ routine, session, restDay, exerciseById, onStart, onChoos
                 <li key={it.id} className="today-item">
                   <ExerciseThumb exercise={ex} size={48} />
                   <span className="row-text">
-                    <span className="row-title">{ex?.name || 'Ejercicio'}</span>
+                    <span className="row-title">{ex?.displayName || 'Ejercicio'}</span>
                     <span className="row-sub">{setsLabel(it)} · {describeItemLoad(it, ex?.loadType)}</span>
                   </span>
                 </li>

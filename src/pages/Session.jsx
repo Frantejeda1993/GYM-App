@@ -11,6 +11,7 @@ import { Header, Modal, Empty } from '../components/ui';
 import ExerciseThumb from '../components/ExerciseThumb';
 import ExerciseList from '../components/ExerciseList';
 import RestTimer, { unlockAudio } from '../components/RestTimer';
+import { ExerciseInfoModal } from '../components/ExerciseInfo';
 
 
 
@@ -165,7 +166,7 @@ function ActiveSession({ initial }) {
       )}
       {modal === 'finish' && (
         <FinishModal
-          session={s}
+          session={{ ...s, entries: s.entries.map((e) => ({ ...e, name: exerciseById(e.exerciseId)?.displayName || e.name })) }}
           routine={routine}
           sessions={sessions}
           onClose={() => setModal(null)}
@@ -246,6 +247,7 @@ function SetRow({ entry, i, onToggle, onEdit }) {
 }
 
 function StrengthCard({ entry, exercise, onToggle, onEdit, onRemove }) {
+  const [info, setInfo] = useState(false);
   if (!entry) return null;
   const allDone = entry.sets.length > 0 && entry.sets.every((x) => x.done);
   const planned = entry.sets[0];
@@ -255,14 +257,23 @@ function StrengthCard({ entry, exercise, onToggle, onEdit, onRemove }) {
         <ExerciseThumb exercise={exercise || { name: entry.name }} size={52} />
         <div className="row-text">
           <span className="row-title">
-            {entry.name || exercise?.name}
+            {exercise?.displayName || entry.name}
             {entry.adhoc && <span className="badge">{entry.fixed ? 'nuevo fijo' : 'solo hoy'}</span>}
           </span>
           <span className="row-sub">
             Rango {entry.repMin}–{entry.repMax} · {planned ? describeLoad(planned.plannedKg, entry.loadType, entry.barKg) : ''}
           </span>
         </div>
+        {exercise && (
+          <button className="icon-btn info-btn" onClick={() => setInfo(true)} aria-label="Ficha, vídeos y notas">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.5" /></svg>
+          </button>
+        )}
       </div>
+      {exercise?.notes && (
+        <button className="notes-line" onClick={() => setInfo(true)}>📝 {exercise.notes}</button>
+      )}
+      {info && exercise && <ExerciseInfoModal exercise={exercise} onClose={() => setInfo(false)} />}
       {entry.sets.map((_, i) => (
         <SetRow key={i} entry={entry} i={i} onToggle={onToggle} onEdit={onEdit} />
       ))}
@@ -334,7 +345,7 @@ function MarkAllModal({ session, exerciseById, onEdit, onClose, onConfirm }) {
       <p className="muted small">Revisa series, pesos y repeticiones. Corrige lo que no coincida antes de confirmar.</p>
       {pending.map((e) => (
         <div key={e.id} className="confirm-block">
-          <p className="row-title">{e.name || exerciseById(e.exerciseId)?.name}</p>
+          <p className="row-title">{exerciseById(e.exerciseId)?.displayName || e.name}</p>
           {e.sets.map((x, i) => (x.done ? null : <SetRow key={i} entry={e} i={i} onToggle={() => {}} onEdit={onEdit} />))}
         </div>
       ))}
@@ -359,7 +370,7 @@ function AddModal({ onClose, onAddExercise, onAddCardio }) {
       {step === 'pick' && <ExerciseList onSelect={(ex) => { setPending({ type: 'exercise', exercise: ex }); setStep('scope'); }} />}
       {step === 'scope' && (
         <>
-          {pending.exercise && <p className="row-title">{pending.exercise.name}</p>}
+          {pending.exercise && <p className="row-title">{pending.exercise.displayName}</p>}
           <button className="choice" onClick={() => (pending.type === 'cardio' ? onAddCardio(false) : onAddExercise(pending.exercise, false))}>
             <strong>Solo hoy</strong><span>No cambia la rutina.</span>
           </button>

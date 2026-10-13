@@ -56,7 +56,7 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
 
   return (
     <Modal
-      title={exercise?.name || 'Ejercicio'}
+      title={exercise?.displayName || 'Ejercicio'}
       onClose={onClose}
       footer={
         <>

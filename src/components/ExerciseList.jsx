@@ -32,7 +32,7 @@ export default function ExerciseList({ onSelect, autoFocus }) {
         if (onlyMine && e.source !== 'user') return false;
         if (equipment.length && !equipment.includes(e.equipment || 'other')) return false;
         if (muscles.length && score(e) === 0) return false;
-        return words.every((w) => e.nameNormalized.includes(w));
+        return words.every((w) => e.nameNormalized.includes(w) || e.aliasNormalized?.includes(w));
       })
       .map((e) => ({ e, s: muscles.length ? score(e) : 0 }))
       .sort((a, b) => b.s - a.s)
@@ -47,7 +47,7 @@ export default function ExerciseList({ onSelect, autoFocus }) {
         <input
           className="search"
           type="search"
-          placeholder="Buscar (en inglés: bench, squat…)"
+          placeholder="Buscar (inglés o tu apodo)"
           value={q}
           autoFocus={autoFocus}
           onChange={(e) => { setQ(e.target.value); reset(); }}
@@ -96,10 +96,10 @@ export default function ExerciseList({ onSelect, autoFocus }) {
               <ExerciseThumb exercise={e} />
               <span className="row-text">
                 <span className="row-title">
-                  {e.name}
+                  {e.displayName}
                   {e.source === 'user' && <span className="badge">usuario</span>}
                 </span>
-                <span className="row-sub">{equipmentLabel(e.equipment)}</span>
+                <span className="row-sub">{e.alias ? `${e.name} · ` : ''}{equipmentLabel(e.equipment)}</span>
                 <MuscleChips primary={e.primaryMuscles} secondary={e.secondaryMuscles} />
               </span>
             </button>

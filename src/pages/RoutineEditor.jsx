@@ -183,7 +183,7 @@ function SessionEditor({ session, onChange }) {
               <button className="item-main" onClick={() => setEditing(it.id)}>
                 {it.kind === 'strength' ? (
                   <>
-                    <span className="item-title">{ex?.name || 'Ejercicio no disponible'}</span>
+                    <span className="item-title">{ex?.displayName || 'Ejercicio no disponible'}</span>
                     <span className="item-sub">
                       {setsLabel(it)} · {describeItemLoad(it, ex?.loadType)}
                     </span>
