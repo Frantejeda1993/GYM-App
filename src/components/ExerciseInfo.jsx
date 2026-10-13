@@ -93,7 +93,8 @@ export function AnimationModal({ exercise, onClose }) {
       {exercise.alias && <p className="muted small">{exercise.name}</p>}
       {exercise.images?.length ? <FrameAnimation images={exercise.images} /> : <p className="muted">Este ejercicio no tiene imágenes.</p>}
       <VideoLink exercise={exercise} />
-      {exercise.notes && <p className="notes-line mt8">📝 {exercise.notes}</p>}
+      <div className="mt8" />
+      <PersonalNotesEditor exercise={exercise} />
     </Modal>
   );
 }

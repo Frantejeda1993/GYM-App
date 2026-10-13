@@ -4,9 +4,13 @@ import { LOAD_TYPES, inputToStored, storedToInput, describeLoad, describeItemLoa
 import { CARDIO_TYPES } from '../lib/routine';
 import MuscleChips from './MuscleChips';
 import ExerciseThumb from './ExerciseThumb';
+import { useAuth } from '../auth';
+import { saveExerciseNote } from '../lib/db';
 
 export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }) {
+  const { user } = useAuth();
   const lt = exercise?.loadType || 'total';
+  const [alias, setAlias] = useState(exercise?.alias || '');
   const toInput = (v) => storedToInput(v, lt, item.barKg);
   const [f, setF] = useState({
     sets: item.sets,
@@ -38,8 +42,12 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
   const repsOutside = reps != null && rangeOk && (reps < Number(f.repMin) || reps > Number(f.repMax));
   const step = lt === 'barbell' ? 1.25 : lt === 'dumbbell' ? 1 : 2.5;
 
-  const save = () =>
-    rangeOk &&
+  const save = () => {
+    if (!rangeOk) return;
+    // El apodo es personal y vale para todas las rutinas.
+    if (exercise && alias.trim() !== (exercise.alias || '')) {
+      saveExerciseNote(user.uid, exercise.id, { alias, notes: exercise.notes || '' });
+    }
     onSave({
       ...item,
       sets: Number(f.sets),
@@ -53,6 +61,7 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
       restSec: Number(f.restSec),
       incrementKg: Number(f.incrementKg),
     });
+  };
 
   return (
     <Modal
@@ -70,6 +79,12 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
           <ExerciseThumb exercise={exercise} size={64} />
           <MuscleChips primary={exercise.primaryMuscles} secondary={exercise.secondaryMuscles} />
         </div>
+      )}
+      {exercise && (
+        <label className="field mt8">
+          <span>Mi apodo (opcional, para todas tus rutinas)</span>
+          <input value={alias} placeholder={exercise.name} onChange={(e) => setAlias(e.target.value)} />
+        </label>
       )}
       <div className="grid-2">
         <Stepper label="Series" value={f.sets} onChange={setSets} min={1} max={20} />
