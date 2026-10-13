@@ -49,3 +49,9 @@ export function setsLabel(it) {
   const range = `${it.repMin}–${it.repMax}`;
   return it.reps ? `${it.sets} × ${it.reps} (${range})` : `${it.sets} × ${range}`;
 }
+
+// Copia de una sesión con ids nuevos (la copia lleva su propia progresión e historial).
+export function cloneSession(session, extra = {}) {
+  const copy = JSON.parse(JSON.stringify(session));
+  return { ...copy, id: uid(), items: copy.items.map((it) => ({ ...it, id: uid() })), ...extra };
+}

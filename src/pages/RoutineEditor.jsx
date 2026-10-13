@@ -4,7 +4,7 @@ import { useAuth } from '../auth';
 import { useData } from '../data';
 import { saveRoutine } from '../lib/db';
 import { now } from '../lib/dates';
-import { WEEKDAYS, sequenceLetter, newSession, newStrengthItem, newCardioItem, cardioSummary, setsLabel } from '../lib/routine';
+import { WEEKDAYS, sequenceLetter, newSession, newStrengthItem, newCardioItem, cardioSummary, setsLabel, cloneSession } from '../lib/routine';
 import { describeLoad, describeItemLoad } from '../lib/load';
 import { Header, Modal, Empty } from '../components/ui';
 import ExerciseList from '../components/ExerciseList';
@@ -22,6 +22,7 @@ export default function RoutineEditor() {
 
   const [draft, setDraft] = useState(null);
   const [dirty, setDirty] = useState(false);
+  const [copying, setCopying] = useState(null); // sesión que se está copiando
 
   useEffect(() => {
     if (draft) return;
@@ -65,7 +66,6 @@ export default function RoutineEditor() {
       data.templateSessions = [...sessions].sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i }));
       data.restDays = [];
     }
-    if (isNew) data.active = routines.length === 0; // la primera rutina queda activa
     if (isNew && routines.length === 0) {
       data.active = true; // la primera rutina queda activa
       data.activatedAt = now();
@@ -102,9 +102,12 @@ export default function RoutineEditor() {
                 <div className="day-head">
                   <strong>{day}</strong>
                   {s ? (
+                    <span className="day-tools">
+                    <button className="btn small ghost" onClick={() => setCopying(s)}>Copiar</button>
                     <button className="btn small ghost" onClick={() => window.confirm(`¿Marcar ${day} como descanso? Se borra su sesión.`) && update((d) => ({ ...d, templateSessions: d.templateSessions.filter((x) => x.weekday !== wd) }))}>
                       Descanso
                     </button>
+                    </span>
                   ) : (
                     <button className="btn small" onClick={() => update((d) => ({ ...d, templateSessions: [...d.templateSessions, newSession(day, { weekday: wd })] }))}>
                       + Entreno
@@ -123,6 +126,7 @@ export default function RoutineEditor() {
               <div className="day-head">
                 <strong>{sequenceLetter(i)}</strong>
                 <span className="day-tools">
+                  <button className="btn small ghost" onClick={() => setCopying(s)}>Copiar</button>
                   <button className="icon-btn small" disabled={i === 0} onClick={() => update((d) => swapOrder(d, arr[i - 1].id, s.id))} aria-label="Subir">↑</button>
                   <button className="icon-btn small" disabled={i === arr.length - 1} onClick={() => update((d) => swapOrder(d, s.id, arr[i + 1].id))} aria-label="Bajar">↓</button>
                   <button className="icon-btn small" onClick={() => window.confirm(`¿Eliminar la sesión ${s.name}?`) && update((d) => ({ ...d, templateSessions: d.templateSessions.filter((x) => x.id !== s.id) }))} aria-label="Eliminar">✕</button>
@@ -138,6 +142,56 @@ export default function RoutineEditor() {
             + Añadir sesión
           </button>
         </div>
+      )}
+
+      {copying && draft.mode === 'weekly' && (
+        <Modal title={`Copiar ${copying.name}`} onClose={() => setCopying(null)}>
+          <p className="muted small">¿A qué día la pegas? Se copian todos sus ejercicios y cardio.</p>
+          {WEEKDAYS.map((day, wd) => {
+            if (wd === copying.weekday) return null;
+            const target = sessions.find((x) => x.weekday === wd);
+            return (
+              <button
+                key={day}
+                className="choice"
+                onClick={() => {
+                  if (target && !window.confirm(`${day} ya tiene "${target.name}". ¿Reemplazarla por la copia?`)) return;
+                  const name = copying.name === WEEKDAYS[copying.weekday] ? day : copying.name;
+                  update((d) => ({
+                    ...d,
+                    templateSessions: [...d.templateSessions.filter((x) => x.weekday !== wd), cloneSession(copying, { weekday: wd, name })],
+                  }));
+                  setCopying(null);
+                }}
+              >
+                <strong>{day}</strong>
+                <span>{target ? `Tiene "${target.name}": se reemplaza` : 'Descanso'}</span>
+              </button>
+            );
+          })}
+        </Modal>
+      )}
+      {copying && draft.mode === 'sequential' && (
+        <Modal title={`Copiar ${copying.name}`} onClose={() => setCopying(null)}>
+          <p className="muted small">¿Después de qué sesión la pegas?</p>
+          {[...sessions].sort((a, b) => a.order - b.order).map((s, i) => (
+            <button
+              key={s.id}
+              className="choice"
+              onClick={() => {
+                update((d) => {
+                  const ordered = [...d.templateSessions].sort((a, b) => a.order - b.order);
+                  ordered.splice(i + 1, 0, cloneSession(copying, { name: `${copying.name} (copia)` }));
+                  return { ...d, templateSessions: ordered.map((x, j) => ({ ...x, order: j })) };
+                });
+                setCopying(null);
+              }}
+            >
+              <strong>Después de {sequenceLetter(i)} · {s.name}</strong>
+              <span>La copia será la sesión {sequenceLetter(i + 1)}{i + 1 < sessions.length ? '; las siguientes se desplazan' : ''}.</span>
+            </button>
+          ))}
+        </Modal>
       )}
 
       <div className="sticky-foot">
