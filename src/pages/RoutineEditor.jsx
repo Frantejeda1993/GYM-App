@@ -10,6 +10,7 @@ import { Header, Modal, Empty } from '../components/ui';
 import ExerciseList from '../components/ExerciseList';
 import ExerciseThumb from '../components/ExerciseThumb';
 import { AnimationModal } from '../components/ExerciseInfo';
+import { ExerciseEditor } from './ExerciseForm';
 import { StrengthItemEditor, CardioItemEditor } from '../components/ItemEditors';
 
 export default function RoutineEditor() {
@@ -212,9 +213,11 @@ function swapOrder(d, idA, idB) {
 }
 
 function SessionEditor({ session, onChange }) {
-  const { profile } = useAuth();
-  const { exerciseById } = useData();
+  const { user, profile } = useAuth();
+  const { exerciseById, catalog } = useData();
+  const navigate = useNavigate();
   const [picking, setPicking] = useState(false);
+  const [creating, setCreating] = useState(null); // nombre inicial del ejercicio nuevo
   const [editing, setEditing] = useState(null); // item id
   const [viewing, setViewing] = useState(null); // ejercicio cuya animación se muestra
 
@@ -226,6 +229,13 @@ function SessionEditor({ session, onChange }) {
       return next;
     });
   const editingItem = session.items.find((x) => x.id === editing);
+
+  function addExercise(ex) {
+    const item = newStrengthItem(ex, profile);
+    setItems((items) => [...items, item]);
+    setPicking(false);
+    setEditing(item.id);
+  }
 
   return (
     <div className="session">
@@ -270,15 +280,21 @@ function SessionEditor({ session, onChange }) {
 
       {viewing && <AnimationModal exercise={viewing} onClose={() => setViewing(null)} />}
       {picking && (
-        <Modal title="Añadir ejercicio" onClose={() => setPicking(false)}>
-          <ExerciseList
-            onSelect={(ex) => {
-              const item = newStrengthItem(ex, profile);
-              setItems((items) => [...items, item]);
-              setPicking(false);
-              setEditing(item.id);
-            }}
-          />
+        <Modal title={creating != null ? 'Nuevo ejercicio' : 'Añadir ejercicio'} onClose={() => { setPicking(false); setCreating(null); }}>
+          {creating != null ? (
+            <ExerciseEditor
+              embedded
+              catalog={catalog}
+              user={user}
+              profile={profile}
+              navigate={navigate}
+              initialName={creating}
+              onSaved={(ex) => { setCreating(null); addExercise(ex); }}
+              onPickExisting={(ex) => { setCreating(null); addExercise(ex); }}
+            />
+          ) : (
+            <ExerciseList onSelect={addExercise} onCreate={(q) => setCreating(q)} selectLabel="Añadir a la rutina" />
+          )}
         </Modal>
       )}
 

@@ -344,3 +344,7 @@ textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .item .thumb-btn .thumb { margin-left: 0; }
 .photo-empty { width: 96px; height: 64px; border-radius: 10px; border: 1px dashed var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; flex-shrink: 0; }
 .photo-field + .photo-field { margin-top: 8px; }
+.ex-row { display: flex; align-items: flex-start; gap: 12px; }
+.ex-row .thumb-btn { margin: 12px 0 0 2px; }
+.ex-row .row-btn { flex: 1; min-width: 0; }
+.create-btn { margin: 4px 0 8px; border-style: dashed; }

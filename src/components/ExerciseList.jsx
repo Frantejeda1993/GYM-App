@@ -5,12 +5,16 @@ import { EQUIPMENT_KEYS, equipmentLabel } from '../lib/equipment';
 import { normalize } from '../lib/text';
 import MuscleChips from './MuscleChips';
 import ExerciseThumb from './ExerciseThumb';
+import { AnimationModal } from './ExerciseInfo';
 
 const PAGE = 50;
 const toggle = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
 // Lista buscable y filtrable del catálogo. onSelect recibe el ejercicio.
-export default function ExerciseList({ onSelect, autoFocus }) {
+// Tocar la miniatura abre la animación. onCreate(nombre) muestra "Crear ejercicio".
+// selectLabel: texto del botón de la vista previa para elegir el ejercicio.
+export default function ExerciseList({ onSelect, autoFocus, onCreate, selectLabel }) {
+  const [preview, setPreview] = useState(null);
   const { catalog } = useData();
   const [q, setQ] = useState('');
   const [muscles, setMuscles] = useState([]);
@@ -89,11 +93,18 @@ export default function ExerciseList({ onSelect, autoFocus }) {
       )}
 
       <p className="muted small">{results.length} ejercicios</p>
+      {onCreate && (
+        <button type="button" className="btn wide create-btn" onClick={() => onCreate(q.trim())}>
+          + Crear ejercicio{q.trim() ? ` "${q.trim()}"` : ' nuevo'}
+        </button>
+      )}
       <ul className="list">
         {results.slice(0, limit).map((e) => (
-          <li key={e.id}>
-            <button type="button" className="row-btn with-thumb" onClick={() => onSelect(e)}>
+          <li key={e.id} className="ex-row">
+            <button type="button" className="thumb-btn" onClick={() => setPreview(e)} aria-label={`Ver animación de ${e.displayName}`}>
               <ExerciseThumb exercise={e} />
+            </button>
+            <button type="button" className="row-btn" onClick={() => onSelect(e)}>
               <span className="row-text">
                 <span className="row-title">
                   {e.displayName}
@@ -106,6 +117,13 @@ export default function ExerciseList({ onSelect, autoFocus }) {
           </li>
         ))}
       </ul>
+      {preview && (
+        <AnimationModal
+          exercise={preview}
+          onClose={() => setPreview(null)}
+          action={selectLabel ? { label: selectLabel, onClick: () => { const e = preview; setPreview(null); onSelect(e); } } : null}
+        />
+      )}
       {results.length > limit && (
         <button type="button" className="btn ghost wide" onClick={() => setLimit((l) => l + PAGE)}>Ver más</button>
       )}

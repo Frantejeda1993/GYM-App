@@ -59,8 +59,10 @@ function ExerciseView({ exercise: e }) {
   );
 }
 
-function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
-  const [name, setName] = useState(existing?.name || '');
+// embedded: dentro de otro flujo (p. ej. "+ Ejercicio" de la rutina). onSaved(ejercicio) y
+// onPickExisting(ejercicio) sustituyen a la navegación.
+export function ExerciseEditor({ existing, catalog, user, profile, navigate, embedded, initialName = '', onSaved, onPickExisting }) {
+  const [name, setName] = useState(existing?.name || initialName);
   const [equipment, setEquipment] = useState(existing?.equipment || 'barbell');
   const [loadType, setLoadType] = useState(existing?.loadType || 'barbell');
   const [imageData, setImageData] = useState(existing?.imageData || null);
@@ -109,9 +111,14 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
       imageData: imageData || imageData2 || null,
       imageData2: imageData ? imageData2 || null : null,
     };
-    if (existing) updateExercise(existing.id, data);
-    else createExercise(user, data);
-    navigate('/ejercicios');
+    if (existing) {
+      updateExercise(existing.id, data);
+      navigate('/ejercicios');
+      return;
+    }
+    const id = createExercise(user, data);
+    if (onSaved) onSaved({ id, ...data, source: 'user', displayName: data.name, images: [data.imageData, data.imageData2].filter(Boolean) });
+    else navigate('/ejercicios');
   }
 
   function archive() {
@@ -121,8 +128,8 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
   }
 
   return (
-    <div className="page">
-      <Header title={existing ? 'Editar ejercicio' : 'Nuevo ejercicio'} back />
+    <div className={embedded ? '' : 'page'}>
+      {!embedded && <Header title={existing ? 'Editar ejercicio' : 'Nuevo ejercicio'} back />}
       <div className="form">
         <label className="field">
           <span>Nombre</span>
@@ -135,7 +142,7 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
             <ul className="mini-list">
               {similar.map((e) => (
                 <li key={e.id}>
-                  <button type="button" className="link" onClick={() => navigate(`/ejercicios/${encodeURIComponent(e.id)}`)}>{e.name}</button>
+                  <button type="button" className="link" onClick={() => (onPickExisting ? onPickExisting(e) : navigate(`/ejercicios/${encodeURIComponent(e.id)}`))}>{e.displayName || e.name}</button>
                 </li>
               ))}
             </ul>
