@@ -34,11 +34,14 @@ service cloud.firestore {
       }
     }
 
-    // Foto opcional del ejercicio: data URL de menos de ~150 KB.
+    // Fotos opcionales del ejercicio (inicio y final): data URL de menos de ~150 KB cada una.
+    function smallField(f) {
+      return !(f in request.resource.data)
+        || request.resource.data[f] == null
+        || request.resource.data[f].size() < 150000;
+    }
     function smallImage() {
-      return !('imageData' in request.resource.data)
-        || request.resource.data.imageData == null
-        || request.resource.data.imageData.size() < 150000;
+      return smallField('imageData') && smallField('imageData2');
     }
 
     // Catálogo compartido de ejercicios creados por usuarios.

@@ -23,8 +23,8 @@ const SEED = seed.map((x) => ({
   images: Array.from({ length: x.i || 0 }, (_, f) => `${import.meta.env.BASE_URL}ex/${encodeURIComponent(x.id)}-${f}.webp`),
 }));
 
-// Los ejercicios de usuario guardan una foto pequeña (data URL) en imageData.
-const withImages = (e) => ({ ...e, images: e.imageData ? [e.imageData] : [] });
+// Los ejercicios de usuario guardan hasta dos fotos pequeñas (data URL): inicio y final.
+const withImages = (e) => ({ ...e, images: [e.imageData, e.imageData2].filter(Boolean) });
 
 export function DataProvider({ children }) {
   const { user, status } = useAuth();

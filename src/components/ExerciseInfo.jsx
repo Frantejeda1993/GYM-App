@@ -85,3 +85,15 @@ export function ExerciseInfoModal({ exercise, onClose }) {
     </Modal>
   );
 }
+
+// Animación en grande (al tocar una miniatura).
+export function AnimationModal({ exercise, onClose }) {
+  return (
+    <Modal title={exercise.displayName || exercise.name} onClose={onClose}>
+      {exercise.alias && <p className="muted small">{exercise.name}</p>}
+      {exercise.images?.length ? <FrameAnimation images={exercise.images} /> : <p className="muted">Este ejercicio no tiene imágenes.</p>}
+      <VideoLink exercise={exercise} />
+      {exercise.notes && <p className="notes-line mt8">📝 {exercise.notes}</p>}
+    </Modal>
+  );
+}

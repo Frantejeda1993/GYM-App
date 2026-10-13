@@ -64,6 +64,7 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
   const [equipment, setEquipment] = useState(existing?.equipment || 'barbell');
   const [loadType, setLoadType] = useState(existing?.loadType || 'barbell');
   const [imageData, setImageData] = useState(existing?.imageData || null);
+  const [imageData2, setImageData2] = useState(existing?.imageData2 || null);
   const [imgError, setImgError] = useState('');
   const [barKg, setBarKg] = useState(existing?.defaultBarKg ?? profile?.defaultBarKg ?? 20);
   const [primary, setPrimary] = useState(existing?.primaryMuscles || []);
@@ -104,7 +105,9 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
       primaryMuscles: primary,
       secondaryMuscles: secondary,
       equipment,
-      imageData: imageData || null,
+      // Si solo hay foto final, pasa a ser la única foto.
+      imageData: imageData || imageData2 || null,
+      imageData2: imageData ? imageData2 || null : null,
     };
     if (existing) updateExercise(existing.id, data);
     else createExercise(user, data);
@@ -157,28 +160,32 @@ function ExerciseEditor({ existing, catalog, user, profile, navigate }) {
         </div>
 
         <div className="field">
-          <span>Foto (opcional)</span>
-          <div className="photo-field">
-            {imageData && <img src={imageData} alt="" />}
-            <label className="btn small file-btn">
-              {imageData ? 'Cambiar' : 'Añadir foto'}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={async (ev) => {
-                  const file = ev.target.files?.[0];
-                  if (!file) return;
-                  try {
-                    setImgError('');
-                    setImageData(await resizeImage(file));
-                  } catch (err) {
-                    setImgError(err.message);
-                  }
-                }}
-              />
-            </label>
-            {imageData && <button type="button" className="btn small danger-ghost" onClick={() => setImageData(null)}>Quitar</button>}
-          </div>
+          <span>Fotos (opcional) · inicio y final para ver el movimiento</span>
+          {[['Inicio', imageData, setImageData], ['Final', imageData2, setImageData2]].map(([label, value, setter]) => (
+            <div className="photo-field" key={label}>
+              {value ? <img src={value} alt="" /> : <span className="photo-empty">{label}</span>}
+              <label className="btn small file-btn">
+                {value ? `Cambiar ${label.toLowerCase()}` : `Foto de ${label.toLowerCase()}`}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (ev) => {
+                    const file = ev.target.files?.[0];
+                    ev.target.value = '';
+                    if (!file) return;
+                    try {
+                      setImgError('');
+                      setter(await resizeImage(file));
+                    } catch (err) {
+                      setImgError(err.message);
+                    }
+                  }}
+                />
+              </label>
+              {value && <button type="button" className="btn small danger-ghost" onClick={() => setter(null)}>Quitar</button>}
+            </div>
+          ))}
+          {(imageData || imageData2) && <FrameAnimation images={[imageData, imageData2].filter(Boolean)} />}
           {imgError && <p className="error small">{imgError}</p>}
         </div>
 

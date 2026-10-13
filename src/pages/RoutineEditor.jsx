@@ -9,6 +9,7 @@ import { describeLoad, describeItemLoad } from '../lib/load';
 import { Header, Modal, Empty } from '../components/ui';
 import ExerciseList from '../components/ExerciseList';
 import ExerciseThumb from '../components/ExerciseThumb';
+import { AnimationModal } from '../components/ExerciseInfo';
 import { StrengthItemEditor, CardioItemEditor } from '../components/ItemEditors';
 
 export default function RoutineEditor() {
@@ -215,6 +216,7 @@ function SessionEditor({ session, onChange }) {
   const { exerciseById } = useData();
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState(null); // item id
+  const [viewing, setViewing] = useState(null); // ejercicio cuya animación se muestra
 
   const setItems = (fn) => onChange((s) => ({ ...s, items: fn(s.items) }));
   const move = (i, dir) =>
@@ -233,7 +235,11 @@ function SessionEditor({ session, onChange }) {
           const ex = it.kind === 'strength' ? exerciseById(it.exerciseId) : null;
           return (
             <li key={it.id} className="item">
-              {it.kind === 'strength' && <ExerciseThumb exercise={ex} size={44} />}
+              {it.kind === 'strength' && (
+                <button className="thumb-btn" onClick={() => ex && setViewing(ex)} aria-label={`Ver animación de ${ex?.displayName || 'ejercicio'}`}>
+                  <ExerciseThumb exercise={ex} size={44} />
+                </button>
+              )}
               <button className="item-main" onClick={() => setEditing(it.id)}>
                 {it.kind === 'strength' ? (
                   <>
@@ -262,6 +268,7 @@ function SessionEditor({ session, onChange }) {
         <button className="btn small" onClick={() => setItems((items) => [...items, newCardioItem()])}>+ Cardio</button>
       </div>
 
+      {viewing && <AnimationModal exercise={viewing} onClose={() => setViewing(null)} />}
       {picking && (
         <Modal title="Añadir ejercicio" onClose={() => setPicking(false)}>
           <ExerciseList

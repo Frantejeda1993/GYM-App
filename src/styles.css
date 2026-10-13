@@ -340,3 +340,7 @@ textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .personal { gap: 12px; }
 .info-btn { margin-left: auto; color: var(--muted); flex-shrink: 0; }
 .notes-line { display: block; width: 100%; text-align: left; background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px; padding: 8px 10px; margin: -2px 0 8px; font-size: 13px; color: var(--text); white-space: pre-wrap; }
+.thumb-btn { padding: 0; border: 0; background: none; margin-left: 8px; border-radius: 10px; flex-shrink: 0; display: inline-flex; }
+.item .thumb-btn .thumb { margin-left: 0; }
+.photo-empty { width: 96px; height: 64px; border-radius: 10px; border: 1px dashed var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+.photo-field + .photo-field { margin-top: 8px; }
