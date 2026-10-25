@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../auth';
 import { saveProfile } from '../lib/db';
+import { heightToCm } from '../lib/body';
 import { Header, Stepper } from '../components/ui';
 
 export default function Profile({ onboarding }) {
@@ -27,7 +28,7 @@ export default function Profile({ onboarding }) {
       bodySex: form.bodySex,
       defaultBarKg: Number(form.defaultBarKg) || 0,
       weighReminderDays: Number(form.weighReminderDays) || 14,
-      heightCm: Number(form.heightCm) || null,
+      heightCm: heightToCm(form.heightCm),
       email: user.email,
     };
     if (onboarding) await saveProfile(user.uid, data, true);

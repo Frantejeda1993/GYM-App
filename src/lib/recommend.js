@@ -1,4 +1,5 @@
 import { WEEKDAYS, newSession, newStrengthItem, newCardioItem } from './routine';
+import { BMI_RANGES, rangeLabel, heightToCm } from './body';
 
 export const GOALS = {
   musculo: { label: 'Ganar músculo', short: 'Músculo' },
@@ -68,17 +69,14 @@ const DOSE = {
 };
 
 export function bmiOf(weightKg, heightCm) {
-  if (!(weightKg > 0) || !(heightCm > 0)) return null;
-  const h = heightCm / 100;
+  const cm = heightToCm(heightCm);
+  if (!(weightKg > 0) || !cm) return null;
+  const h = cm / 100;
   return weightKg / (h * h);
 }
 
 export function bmiLabel(bmi) {
-  if (bmi == null) return '';
-  if (bmi < 18.5) return 'bajo peso';
-  if (bmi < 25) return 'normal';
-  if (bmi < 30) return 'sobrepeso';
-  return 'obesidad';
+  return bmi == null ? '' : rangeLabel(BMI_RANGES, bmi).toLowerCase();
 }
 
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');

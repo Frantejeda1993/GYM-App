@@ -4,6 +4,7 @@ import { useAuth } from '../auth';
 import { useData } from '../data';
 import { saveProfile } from '../lib/db';
 import { GOALS, LEVELS, EQUIPMENT, recommendRoutine } from '../lib/recommend';
+import { heightToCm } from '../lib/body';
 import { Header, Stepper } from '../components/ui';
 import RoutinePreview from '../components/RoutinePreview';
 
@@ -45,7 +46,7 @@ export default function Recommend() {
   function show() {
     if (!valid) return;
     // La altura se guarda en el perfil para no pedirla otra vez (y para el FFMI de composición corporal)
-    if (Number(f.heightCm) !== profile?.heightCm) saveProfile(user.uid, { heightCm: Number(f.heightCm) }, false).catch(console.error);
+    if (heightToCm(f.heightCm) !== profile?.heightCm) saveProfile(user.uid, { heightCm: heightToCm(f.heightCm) }, false).catch(console.error);
     setShown(true);
   }
 

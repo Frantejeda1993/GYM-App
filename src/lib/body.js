@@ -70,6 +70,21 @@ const FAT_RANGES = {
 };
 const WATER_RANGES = { male: [50, 65], female: [45, 60] };
 
+// Rangos de referencia [hasta, etiqueta]. IMC según la OMS; FFMI según estudios con personas que entrenan.
+export const BMI_RANGES = [[18.5, 'Bajo peso'], [25, 'Normal'], [30, 'Sobrepeso'], [Infinity, 'Obesidad']];
+export const FFMI_RANGES = {
+  male: [[18, 'Bajo'], [20, 'Promedio'], [22, 'Bueno'], [23, 'Muy bueno'], [25, 'Excelente'], [Infinity, 'Élite']],
+  female: [[14, 'Bajo'], [16, 'Promedio'], [18, 'Bueno'], [19, 'Muy bueno'], [21, 'Excelente'], [Infinity, 'Élite']],
+};
+export const rangeLabel = (ranges, v) => (v == null || !ranges ? null : ranges.find(([max]) => v < max)[1]);
+
+// Altura en cm; acepta también metros (1,75 → 175) por si se escribe así.
+export function heightToCm(v) {
+  const n = Number(v);
+  if (!(n > 0)) return null;
+  return n < 3 ? Math.round(n * 100) : n;
+}
+
 // Pasa una medición a kg y % (convierte con el peso del mismo registro).
 export function compOf(e) {
   const w = e.weightKg > 0 ? e.weightKg : null;
@@ -151,7 +166,8 @@ export function analyze(entries, { sex, heightCm } = {}) {
   const same = comps.filter((c) => c.method === last.method);
   const prev = same.length > 1 ? same.at(-2) : null;
   const first = same.length > 2 ? same[0] : null;
-  const h = heightCm > 0 ? heightCm / 100 : null;
+  const cm = heightToCm(heightCm);
+  const h = cm ? cm / 100 : null;
   const sincePrev = prev && diff(prev, last);
   const sinceFirst = first && diff(first, last);
 
@@ -173,6 +189,7 @@ export function analyze(entries, { sex, heightCm } = {}) {
     waterRange: water || null,
     bmi: h && last.weight ? last.weight / (h * h) : null,
     ffmi: h && last.lean ? last.lean / (h * h) : null,
+    heightCm: cm,
     sincePrev,
     sinceFirst,
     notes,

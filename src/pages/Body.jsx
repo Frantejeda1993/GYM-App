@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { saveBodyMetric, deleteBodyMetric } from '../lib/db';
-import { METHODS, METRICS, combosFor, series, analyze } from '../lib/body';
+import { METHODS, METRICS, combosFor, series, analyze, BMI_RANGES, FFMI_RANGES, rangeLabel } from '../lib/body';
 import { toISODate, now, parseISODate } from '../lib/dates';
 import { Header, Stepper, Empty } from '../components/ui';
 import LineChart from '../components/LineChart';
@@ -27,6 +27,31 @@ function Delta({ v, good, unit }) {
   if (v == null) return <span className="muted">—</span>;
   const tone = Math.abs(v) < 0.1 || !good ? '' : v * good > 0 ? 'good' : 'bad';
   return <span className={`delta ${tone}`}>{signed(v)}{unit === '%' ? ' pp' : ''}</span>;
+}
+
+// Valor con su categoría y la escala de referencia completa, marcando el tramo actual.
+function RangeScale({ name, value, ranges, info }) {
+  const current = rangeLabel(ranges, value);
+  return (
+    <div className="range mt8">
+      <p>
+        <strong>{name} {fmt(value)}</strong> <span className="range-cat">{current}</span>
+      </p>
+      <div className="range-scale">
+        {ranges.map(([max, label], i) => {
+          const min = ranges[i - 1]?.[0];
+          const span = min == null ? `< ${fmt(max)}` : max === Infinity ? `≥ ${fmt(min)}` : `${fmt(min)}–${fmt(max)}`;
+          return (
+            <span key={label} className={label === current ? 'on' : ''}>
+              {label}
+              <small>{span}</small>
+            </span>
+          );
+        })}
+      </div>
+      <p className="muted small">{info}</p>
+    </div>
+  );
 }
 
 // Resumen e interpretación de la última medición de composición.
@@ -73,10 +98,25 @@ function BodyAnalysis({ entries }) {
           </div>
         )}
       </div>
-      {(a.bmi || !profile?.heightCm) && (
-        <p className="muted small">
-          {a.bmi ? `IMC ${fmt(a.bmi)}${a.ffmi ? ' · el FFMI (masa magra / altura²) es más útil que el IMC si entrenas fuerza.' : ''}` : 'Añade tu altura en el Perfil para ver IMC y FFMI.'}
-        </p>
+      {a.bmi ? (
+        <>
+          <RangeScale
+            name="IMC"
+            value={a.bmi}
+            ranges={BMI_RANGES}
+            info={`Peso / altura² (${fmt(last.weight)} kg, ${a.heightCm} cm). No distingue grasa de músculo: con mucha masa muscular puede salir «sobrepeso» sin serlo.`}
+          />
+          {a.ffmi && FFMI_RANGES[profile?.bodySex] && (
+            <RangeScale
+              name="FFMI"
+              value={a.ffmi}
+              ranges={FFMI_RANGES[profile.bodySex]}
+              info={`Masa magra / altura². Mide cuánto músculo tienes para tu estatura y es más útil que el IMC si entrenas fuerza. Por encima de ${profile.bodySex === 'female' ? '21' : '25'} es muy raro sin ayuda farmacológica.`}
+            />
+          )}
+        </>
+      ) : (
+        !a.heightCm && <p className="muted small">Añade tu altura en el Perfil para ver IMC y FFMI con sus valores de referencia.</p>
       )}
 
       {cols.length > 0 ? (
