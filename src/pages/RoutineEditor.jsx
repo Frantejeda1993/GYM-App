@@ -1,24 +1,27 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { saveRoutine } from '../lib/db';
 import { now } from '../lib/dates';
 import { WEEKDAYS, sequenceLetter, newSession, newStrengthItem, newCardioItem, cardioSummary, setsLabel, cloneSession } from '../lib/routine';
 import { describeLoad, describeItemLoad } from '../lib/load';
+import { reviewRoutine } from '../lib/routineReview';
 import { Header, Modal, Empty } from '../components/ui';
 import ExerciseList from '../components/ExerciseList';
 import ExerciseThumb from '../components/ExerciseThumb';
 import { AnimationModal } from '../components/ExerciseInfo';
 import { ExerciseEditor } from './ExerciseForm';
 import { StrengthItemEditor, CardioItemEditor } from '../components/ItemEditors';
+import RoutineReview, { reviewSummary } from '../components/RoutineReview';
 
 export default function RoutineEditor() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
-  const { routines, loaded } = useData();
+  const { routines, loaded, exerciseById } = useData();
   const isNew = id === 'nueva';
   const source = isNew ? null : routines.find((r) => r.id === id);
 
@@ -28,7 +31,11 @@ export default function RoutineEditor() {
 
   useEffect(() => {
     if (draft) return;
-    if (isNew) {
+    if (isNew && location.state?.draft) {
+      // Borrador ya relleno: rutina recomendada o copiada de la comunidad
+      setDraft(structuredClone(location.state.draft));
+      setDirty(true);
+    } else if (isNew) {
       const mode = params.get('modo') === 'sequential' ? 'sequential' : 'weekly';
       setDraft({
         name: '',
@@ -39,7 +46,9 @@ export default function RoutineEditor() {
     } else if (source) {
       setDraft(structuredClone(source));
     }
-  }, [isNew, source, draft, params]);
+  }, [isNew, source, draft, params, location.state]);
+
+  const review = useMemo(() => (draft ? reviewRoutine(draft, exerciseById) : null), [draft, exerciseById]);
 
   if (!isNew && loaded && !source) {
     return (
@@ -61,6 +70,8 @@ export default function RoutineEditor() {
 
   function save() {
     if (!valid) return;
+    const errors = review.issues.filter((i) => i.level === 'error').length;
+    if (errors && !window.confirm(`La revisión encontró ${errors} ${errors === 1 ? 'fallo' : 'fallos'} en la rutina. ¿Guardar igualmente?`)) return;
     const data = { ...draft, name: draft.name.trim() };
     if (data.mode === 'weekly') {
       data.restDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !sessions.some((s) => s.weekday === d));
@@ -93,6 +104,11 @@ export default function RoutineEditor() {
             ? 'Por día de la semana: asigna una sesión a cada día o déjalo como descanso.'
             : 'Secuencial: las sesiones se hacen en orden A → B → C y vuelven a empezar.'}
         </p>
+        {(!review.empty || review.issues.length > 0) && (
+          <button type="button" className={`review-link lv-${reviewSummary(review).top}`} onClick={() => document.getElementById('revision')?.scrollIntoView({ behavior: 'smooth' })}>
+            Revisión: {reviewSummary(review).text} ↓
+          </button>
+        )}
       </div>
 
       {draft.mode === 'weekly' ? (
@@ -195,6 +211,8 @@ export default function RoutineEditor() {
           ))}
         </Modal>
       )}
+
+      <RoutineReview review={review} mode={draft.mode} />
 
       <div className="sticky-foot">
         <button className="btn primary wide" disabled={!valid} onClick={save}>

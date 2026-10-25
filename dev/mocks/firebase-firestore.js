@@ -36,6 +36,7 @@ export function writeBatch() {
   return {
     update: (ref, data) => ops.push(() => { store[ref.path] = { ...store[ref.path], ...data }; }),
     set: (ref, data) => ops.push(() => { store[ref.path] = { ...data }; }),
+    delete: (ref) => ops.push(() => { delete store[ref.path]; }),
     commit: async () => { ops.forEach((o) => o()); notify(); },
   };
 }

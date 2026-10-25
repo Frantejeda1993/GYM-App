@@ -10,7 +10,8 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email_verified == true
         && request.auth.token.email in [
-          'frantejeda1993@gmail.com'
+        'frantejeda1993@gmail.com',
+  	'nachogleon@gmail.com'
         ];
     }
 
@@ -42,6 +43,18 @@ service cloud.firestore {
     }
     function smallImage() {
       return smallField('imageData') && smallField('imageData2');
+    }
+
+    // Rutinas compartidas con la comunidad: las ve cualquier invitado; solo el autor las crea, cambia o retira.
+    match /publicRoutines/{id} {
+      allow read: if invited();
+      allow create: if invited()
+        && request.resource.data.authorUid == request.auth.uid
+        && id.matches(request.auth.uid + '_.*');
+      allow update: if invited()
+        && resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorUid == request.auth.uid;
+      allow delete: if invited() && resource.data.authorUid == request.auth.uid;
     }
 
     // Catálogo compartido de ejercicios creados por usuarios.

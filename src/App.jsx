@@ -8,6 +8,8 @@ import Catalog from './pages/Catalog';
 import ExerciseForm from './pages/ExerciseForm';
 import Routines from './pages/Routines';
 import RoutineEditor from './pages/RoutineEditor';
+import Recommend from './pages/Recommend';
+import Community from './pages/Community';
 import TabBar from './components/TabBar';
 import SessionPage from './pages/Session';
 import Progress, { ProgressDetail } from './pages/Progress';
@@ -27,6 +29,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Today />} />
           <Route path="/rutinas" element={<Routines />} />
+          <Route path="/rutinas/recomendar" element={<Recommend />} />
+          <Route path="/rutinas/comunidad" element={<Community />} />
           <Route path="/rutinas/:id" element={<RoutineEditor />} />
           <Route path="/ejercicios" element={<Catalog />} />
           <Route path="/ejercicios/nuevo" element={<ExerciseForm />} />

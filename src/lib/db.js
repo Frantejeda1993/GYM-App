@@ -99,6 +99,43 @@ export function setActiveRoutine(uid, routines, activeId) {
   return fireAndForget(batch.commit());
 }
 
+// ---------- Rutinas de la comunidad ----------
+
+export const publicRoutinesCol = () => collection(db, 'publicRoutines');
+
+// Publica una copia de la rutina (sin pesos ni progreso personal). El id es fijo por rutina,
+// así que volver a compartir actualiza la copia publicada.
+export function publishRoutine(user, authorName, routine, description) {
+  const publicId = `${user.uid}_${routine.id}`;
+  const templateSessions = (routine.templateSessions || []).map((s) => ({
+    ...s,
+    items: (s.items || []).map((it) =>
+      it.kind === 'strength' ? { ...it, loadKg: it.barKg || 0, setLoads: null, reps: null } : it,
+    ),
+  }));
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'publicRoutines', publicId), {
+    name: routine.name,
+    mode: routine.mode,
+    templateSessions,
+    description: (description || '').trim(),
+    authorUid: user.uid,
+    authorName: authorName || '',
+    sourceRoutineId: routine.id,
+    updatedAt: serverTimestamp(),
+  });
+  batch.update(doc(db, 'users', user.uid, 'routines', routine.id), { publicId });
+  fireAndForget(batch.commit());
+  return publicId;
+}
+
+export function unpublishRoutine(uid, routine) {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'publicRoutines', routine.publicId));
+  batch.update(doc(db, 'users', uid, 'routines', routine.id), { publicId: null });
+  return fireAndForget(batch.commit());
+}
+
 // ---------- Sesiones ----------
 
 export function startSession(uid, data) {
