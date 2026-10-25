@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export function Header({ title, back, action }) {
@@ -47,6 +47,8 @@ export function Modal({ title, onClose, children, footer }) {
 // Campo numérico con botones − / + (cómodo con una mano en el gimnasio).
 export function Stepper({ label, value, onChange, step = 1, min = 0, max, suffix, allowEmpty }) {
   const num = value === '' || value == null ? '' : Number(value);
+  // Texto mientras se escribe: permite estados intermedios como "80," o "80,0" sin que el formateo los borre.
+  const [text, setText] = useState(null);
   const clamp = (v) => {
     let n = Math.round(v * 100) / 100;
     if (n < min) n = min;
@@ -57,19 +59,25 @@ export function Stepper({ label, value, onChange, step = 1, min = 0, max, suffix
     <label className="stepper">
       {label && <span className="stepper-label">{label}{suffix ? ` (${suffix})` : ''}</span>}
       <div className="stepper-row">
-        <button type="button" onClick={() => onChange(clamp((Number(num) || 0) - step))} aria-label={`Restar ${label || ''}`}>−</button>
+        <button type="button" onClick={() => { setText(null); onChange(clamp((Number(num) || 0) - step)); }} aria-label={`Restar ${label || ''}`}>−</button>
         <input
           inputMode="decimal"
-          value={num === '' ? '' : String(num).replace('.', ',')}
+          value={text ?? (num === '' || Number.isNaN(num) ? '' : String(num).replace('.', ','))}
           placeholder={allowEmpty ? '—' : '0'}
           onChange={(e) => {
-            const raw = e.target.value.replace(',', '.');
-            if (raw === '') return onChange(allowEmpty ? '' : 0);
-            if (/^\d*\.?\d*$/.test(raw)) onChange(raw.endsWith('.') ? raw : clamp(Number(raw)));
+            const t = e.target.value;
+            const raw = t.replace(',', '.');
+            if (raw === '') {
+              setText('');
+              return onChange(allowEmpty ? '' : 0);
+            }
+            if (!/^\d*\.?\d*$/.test(raw)) return;
+            setText(t);
+            if (raw !== '.') onChange(clamp(Number(raw)));
           }}
-          onBlur={() => typeof value === 'string' && value !== '' && onChange(clamp(Number(value)))}
+          onBlur={() => setText(null)}
         />
-        <button type="button" onClick={() => onChange(clamp((Number(num) || 0) + step))} aria-label={`Sumar ${label || ''}`}>+</button>
+        <button type="button" onClick={() => { setText(null); onChange(clamp((Number(num) || 0) + step)); }} aria-label={`Sumar ${label || ''}`}>+</button>
       </div>
     </label>
   );

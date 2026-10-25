@@ -10,6 +10,7 @@ export default function Profile({ onboarding }) {
     bodySex: profile?.bodySex || '',
     defaultBarKg: profile?.defaultBarKg ?? 20,
     weighReminderDays: profile?.weighReminderDays ?? 14,
+    heightCm: profile?.heightCm ?? '',
   });
   const [saved, setSaved] = useState(false);
   const set = (k) => (v) => {
@@ -26,6 +27,7 @@ export default function Profile({ onboarding }) {
       bodySex: form.bodySex,
       defaultBarKg: Number(form.defaultBarKg) || 0,
       weighReminderDays: Number(form.weighReminderDays) || 14,
+      heightCm: Number(form.heightCm) || null,
       email: user.email,
     };
     if (onboarding) await saveProfile(user.uid, data, true);
@@ -53,6 +55,7 @@ export default function Profile({ onboarding }) {
           </div>
         </div>
 
+        <Stepper label="Altura (opcional)" value={form.heightCm} onChange={set('heightCm')} step={1} max={250} suffix="cm" allowEmpty />
         <Stepper label="Peso de barra por defecto" value={form.defaultBarKg} onChange={set('defaultBarKg')} step={2.5} suffix="kg" />
         <Stepper label="Avisar si no te pesas en" value={form.weighReminderDays} onChange={set('weighReminderDays')} step={1} min={1} suffix="días" />
 

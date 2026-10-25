@@ -348,3 +348,15 @@ textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .ex-row .thumb-btn { margin: 12px 0 0 2px; }
 .ex-row .row-btn { flex: 1; min-width: 0; }
 .create-btn { margin: 4px 0 8px; border-style: dashed; }
+.stats.tight { margin: 8px 0; }
+.stats.tight .stat-value { font-size: 22px; }
+.verdict { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+.verdict.good { border-left-color: var(--accent); }
+.verdict.bad { border-left-color: var(--danger); }
+.verdict p { margin: 4px 0 0; font-size: 14px; }
+.delta-table td:not(:first-child), .delta-table th:not(:first-child) { text-align: right; }
+.delta { font-weight: 700; font-variant-numeric: tabular-nums; }
+.delta.good { color: var(--accent); }
+.delta.bad { color: var(--danger); }
+.analysis-notes { margin: 8px 0 0; padding-left: 18px; }
+.analysis-notes li + li { margin-top: 4px; }

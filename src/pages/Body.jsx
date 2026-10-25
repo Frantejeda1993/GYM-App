@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { saveBodyMetric, deleteBodyMetric } from '../lib/db';
-import { METHODS, METRICS, combosFor, series } from '../lib/body';
+import { METHODS, METRICS, combosFor, series, analyze } from '../lib/body';
 import { toISODate, now, parseISODate } from '../lib/dates';
 import { Header, Stepper, Empty } from '../components/ui';
 import LineChart from '../components/LineChart';
@@ -11,6 +11,118 @@ import LineChart from '../components/LineChart';
 const fmt = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 const shortDate = (iso) => parseISODate(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 const unitLabel = (u) => (u === 'pct' ? '%' : 'kg');
+const signed = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmt(Math.abs(v))}`;
+
+// Filas de la tabla de cambios: `good` indica si subir es bueno (1), malo (-1) o neutro (0).
+const DELTA_ROWS = [
+  ['weight', 'Peso', 'kg', 0],
+  ['fatKg', 'Grasa', 'kg', -1],
+  ['fatPct', 'Grasa', '%', -1],
+  ['muscleKg', 'Músculo', 'kg', 1],
+  ['leanKg', 'Masa magra', 'kg', 1],
+  ['waterPct', 'Agua', '%', 0],
+];
+
+function Delta({ v, good, unit }) {
+  if (v == null) return <span className="muted">—</span>;
+  const tone = Math.abs(v) < 0.1 || !good ? '' : v * good > 0 ? 'good' : 'bad';
+  return <span className={`delta ${tone}`}>{signed(v)}{unit === '%' ? ' pp' : ''}</span>;
+}
+
+// Resumen e interpretación de la última medición de composición.
+function BodyAnalysis({ entries }) {
+  const { profile } = useAuth();
+  const a = useMemo(() => analyze(entries, { sex: profile?.bodySex, heightCm: profile?.heightCm }), [entries, profile?.bodySex, profile?.heightCm]);
+  if (!a) return null;
+  const { last, sincePrev: p, sinceFirst: f } = a;
+  const cols = [p && ['Anterior', p], f && ['Inicio', f]].filter(Boolean);
+  const rows = DELTA_ROWS.filter(([k]) => cols.some(([, d]) => d[k] != null));
+  const rate = f?.perMonth || p?.perMonth;
+  const rateSrc = f?.perMonth ? f : p;
+
+  return (
+    <div className="analysis mt8">
+      <p className="filter-label">Análisis · {shortDate(last.date)} · {METHODS[last.method] || 'Otro'}</p>
+      <div className="stats tight">
+        {last.fat && (
+          <div className="stat">
+            <span className="stat-label">Grasa</span>
+            <span className="stat-value">{last.fat.pct != null ? `${fmt(last.fat.pct)} %` : `${fmt(last.fat.kg)} kg`}</span>
+            <span className="stat-sub">{[last.fat.pct != null && last.fat.kg != null && `${fmt(last.fat.kg)} kg`, a.fatCat].filter(Boolean).join(' · ')}</span>
+          </div>
+        )}
+        {last.muscle && (
+          <div className="stat">
+            <span className="stat-label">Músculo</span>
+            <span className="stat-value">{last.muscle.kg != null ? `${fmt(last.muscle.kg)} kg` : `${fmt(last.muscle.pct)} %`}</span>
+            <span className="stat-sub">{last.muscle.kg != null && last.muscle.pct != null ? `${fmt(last.muscle.pct)} % del peso` : ''}</span>
+          </div>
+        )}
+        {last.lean != null && (
+          <div className="stat">
+            <span className="stat-label">Masa magra</span>
+            <span className="stat-value">{fmt(last.lean)} kg</span>
+            <span className="stat-sub">{a.ffmi ? `FFMI ${fmt(a.ffmi)}` : 'peso sin grasa'}</span>
+          </div>
+        )}
+        {last.water && (
+          <div className="stat">
+            <span className="stat-label">Agua</span>
+            <span className="stat-value">{last.water.pct != null ? `${fmt(last.water.pct)} %` : `${fmt(last.water.kg)} kg`}</span>
+            <span className="stat-sub">{a.waterRange ? `habitual ${a.waterRange[0]}–${a.waterRange[1]} %` : ''}</span>
+          </div>
+        )}
+      </div>
+      {(a.bmi || !profile?.heightCm) && (
+        <p className="muted small">
+          {a.bmi ? `IMC ${fmt(a.bmi)}${a.ffmi ? ' · el FFMI (masa magra / altura²) es más útil que el IMC si entrenas fuerza.' : ''}` : 'Añade tu altura en el Perfil para ver IMC y FFMI.'}
+        </p>
+      )}
+
+      {cols.length > 0 ? (
+        <>
+          {cols.map(([label, d]) => d.verdict && (
+            <div key={label} className={`verdict ${d.verdict.tone}`}>
+              <strong>{d.verdict.title}</strong>
+              <span className="muted small"> · desde {label === 'Inicio' ? 'el inicio' : 'la anterior'} ({shortDate(d.from)}, {d.days} días)</span>
+              <p>{d.verdict.text}</p>
+            </div>
+          ))}
+          <table className="hist delta-table">
+            <thead>
+              <tr>
+                <th>Cambio</th>
+                {cols.map(([label, d]) => <th key={label}>{label}<br /><span className="muted">{shortDate(d.from)}</span></th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([k, l, u, good]) => (
+                <tr key={k}>
+                  <td>{l} <span className="muted">({u})</span></td>
+                  {cols.map(([label, d]) => <td key={label}><Delta v={d[k]} good={good} unit={u} /></td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rate && (rateSrc.fatKg != null || rateSrc.muscleKg != null) && (
+            <p className="muted small">
+              Ritmo medio: {[
+                rateSrc.weight != null && `peso ${signed(rate(rateSrc.weight))} kg`,
+                rateSrc.fatKg != null && `grasa ${signed(rate(rateSrc.fatKg))} kg`,
+                rateSrc.muscleKg != null && `músculo ${signed(rate(rateSrc.muscleKg))} kg`,
+              ].filter(Boolean).join(' · ')} al mes.
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="muted small">Con la próxima medición verás la comparación y qué parte del cambio es grasa y qué parte músculo.</p>
+      )}
+      <ul className="analysis-notes">
+        {a.notes.map((n) => <li key={n} className="muted small">{n}</li>)}
+      </ul>
+    </div>
+  );
+}
 
 // Vista de composición corporal (dentro de la pestaña Progreso).
 export function BodyView() {
@@ -29,7 +141,9 @@ export function BodyView() {
   return (
     <section>
       <button className="btn primary wide" onClick={() => navigate('/cuerpo/nuevo')}>+ Registrar medición</button>
-      <div className="segmented four mt8">
+      <BodyAnalysis entries={bodyMetrics} />
+      <p className="filter-label mt8">Evolución</p>
+      <div className="segmented four">
         {Object.entries(METRICS).map(([k, m]) => (
           <button key={k} className={metric === k ? 'on' : ''} onClick={() => { setMetric(k); setComboKey(null); }}>{m.short}</button>
         ))}

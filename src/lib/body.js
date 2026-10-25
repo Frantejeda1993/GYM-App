@@ -57,3 +57,124 @@ export function daysSinceWeight(entries, today) {
   if (!last) return null;
   return Math.round((parseISODate(today) - parseISODate(last)) / DAY);
 }
+
+// ---------- Análisis de composición ----------
+
+// Por debajo de este cambio (kg) la bioimpedancia no distingue variación real de ruido.
+const NOISE_KG = 0.3;
+
+// Rangos orientativos de % de grasa (ACE) y % de agua por sexo.
+const FAT_RANGES = {
+  male: [[6, 'Esencial'], [14, 'Atlético'], [18, 'En forma'], [25, 'Promedio'], [Infinity, 'Elevado']],
+  female: [[14, 'Esencial'], [21, 'Atlético'], [25, 'En forma'], [32, 'Promedio'], [Infinity, 'Elevado']],
+};
+const WATER_RANGES = { male: [50, 65], female: [45, 60] };
+
+// Pasa una medición a kg y % (convierte con el peso del mismo registro).
+export function compOf(e) {
+  const w = e.weightKg > 0 ? e.weightKg : null;
+  const part = (m) => {
+    if (!(m?.value > 0)) return null;
+    if (m.unit === 'kg') return { kg: m.value, pct: w ? (m.value / w) * 100 : null };
+    return { pct: m.value, kg: w ? (m.value * w) / 100 : null };
+  };
+  const fat = part(e.fat);
+  return {
+    id: e.id,
+    date: e.date,
+    method: e.method,
+    weight: w,
+    fat,
+    muscle: part(e.muscle),
+    water: part(e.water),
+    lean: w && fat?.kg != null ? w - fat.kg : null,
+  };
+}
+
+export function fatCategory(pct, sex) {
+  if (pct == null || !FAT_RANGES[sex]) return null;
+  return FAT_RANGES[sex].find(([max]) => pct < max)[1];
+}
+
+// Lectura del cambio de grasa y músculo (kg) entre dos mediciones.
+export function verdict(dFat, dMuscle) {
+  if (dFat == null || dMuscle == null) return null;
+  const f = Math.abs(dFat) < NOISE_KG ? 0 : Math.sign(dFat);
+  const m = Math.abs(dMuscle) < NOISE_KG ? 0 : Math.sign(dMuscle);
+  if (f < 0 && m > 0) return { tone: 'good', title: 'Recomposición', text: 'Pierdes grasa y ganas músculo a la vez: el mejor escenario.' };
+  if (f < 0 && m === 0) return { tone: 'good', title: 'Definición limpia', text: 'Bajas grasa manteniendo el músculo.' };
+  if (f < 0 && m < 0) {
+    return -dMuscle > -dFat * 0.5
+      ? { tone: 'bad', title: 'Pierdes músculo', text: 'Bajas grasa pero también bastante músculo: revisa la proteína (≈1,6–2,2 g/kg) y que el déficit no sea excesivo.' }
+      : { tone: 'neutral', title: 'Definición', text: 'Bajas sobre todo grasa, con algo de músculo: normal en déficit.' };
+  }
+  if (f === 0 && m > 0) return { tone: 'good', title: 'Ganancia muscular', text: 'Ganas músculo sin sumar grasa.' };
+  if (f === 0 && m === 0) return { tone: 'neutral', title: 'Estable', text: 'Sin cambios relevantes (dentro del margen de error de la báscula).' };
+  if (f === 0 && m < 0) return { tone: 'bad', title: 'Pérdida de músculo', text: 'Baja el músculo sin cambiar la grasa: revisa volumen de entrenamiento, proteína y descanso.' };
+  if (f > 0 && m > 0) {
+    return dMuscle >= dFat
+      ? { tone: 'good', title: 'Volumen limpio', text: 'Ganas más músculo que grasa.' }
+      : { tone: 'neutral', title: 'Volumen', text: 'Ganas músculo, pero más grasa que músculo: si buscas un volumen limpio, reduce un poco el superávit.' };
+  }
+  if (f > 0 && m === 0) return { tone: 'bad', title: 'Ganancia de grasa', text: 'Sube la grasa sin ganar músculo.' };
+  return { tone: 'bad', title: 'A revisar', text: 'Sube la grasa y baja el músculo.' };
+}
+
+function diff(a, b) {
+  const d = (x, y) => (x != null && y != null ? y - x : null);
+  const days = Math.round((parseISODate(b.date) - parseISODate(a.date)) / DAY);
+  const r = {
+    from: a.date,
+    days,
+    weight: d(a.weight, b.weight),
+    fatKg: d(a.fat?.kg, b.fat?.kg),
+    fatPct: d(a.fat?.pct, b.fat?.pct),
+    muscleKg: d(a.muscle?.kg, b.muscle?.kg),
+    musclePct: d(a.muscle?.pct, b.muscle?.pct),
+    waterPct: d(a.water?.pct, b.water?.pct),
+    leanKg: d(a.lean, b.lean),
+  };
+  r.verdict = verdict(r.fatKg, r.muscleKg);
+  // Ritmo mensual, solo con suficiente distancia entre mediciones
+  r.perMonth = days >= 21 ? (v) => (v == null ? null : (v * 30) / days) : null;
+  return r;
+}
+
+// Análisis de la última medición de composición frente a la anterior y la primera del mismo método.
+export function analyze(entries, { sex, heightCm } = {}) {
+  const comps = entries
+    .filter((e) => e.fat?.value > 0 || e.muscle?.value > 0 || e.water?.value > 0)
+    .map(compOf)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  if (!comps.length) return null;
+  const last = comps.at(-1);
+  const same = comps.filter((c) => c.method === last.method);
+  const prev = same.length > 1 ? same.at(-2) : null;
+  const first = same.length > 2 ? same[0] : null;
+  const h = heightCm > 0 ? heightCm / 100 : null;
+  const sincePrev = prev && diff(prev, last);
+  const sinceFirst = first && diff(first, last);
+
+  const notes = [];
+  const water = WATER_RANGES[sex];
+  if (water && last.water?.pct != null && last.water.pct < water[0]) {
+    notes.push('El agua está por debajo de lo habitual: la báscula puede sobrestimar la grasa. Bebe con normalidad el día anterior a medirte.');
+  }
+  if (sincePrev?.waterPct != null && Math.abs(sincePrev.waterPct) >= 2) {
+    notes.push(`El agua varió ${Math.abs(sincePrev.waterPct).toFixed(1).replace('.', ',')} puntos desde la medición anterior: parte del cambio de grasa/músculo puede ser hidratación.`);
+  }
+  if (same.length < comps.length) notes.push('Solo se compara con mediciones del mismo método.');
+  notes.push('Para comparar bien, mídete siempre en las mismas condiciones: en ayunas, tras ir al baño y sin haber entrenado.');
+
+  return {
+    last,
+    count: same.length,
+    fatCat: fatCategory(last.fat?.pct, sex),
+    waterRange: water || null,
+    bmi: h && last.weight ? last.weight / (h * h) : null,
+    ffmi: h && last.lean ? last.lean / (h * h) : null,
+    sincePrev,
+    sinceFirst,
+    notes,
+  };
+}
