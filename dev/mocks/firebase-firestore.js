@@ -25,16 +25,24 @@ export async function setDoc(ref, data, opts) {
   store[ref.path] = opts?.merge ? { ...(store[ref.path] || {}), ...data } : { ...data };
   notify();
 }
+// Resuelve valores especiales (arrayUnion) contra el documento actual.
+function resolve(current, data) {
+  const out = { ...data };
+  Object.entries(out).forEach(([k, v]) => {
+    if (v && v.__arrayUnion) out[k] = [...new Set([...(current?.[k] || []), ...v.__arrayUnion])];
+  });
+  return out;
+}
 export async function updateDoc(ref, data) {
   if (!store[ref.path]) throw new Error('not-found');
-  store[ref.path] = { ...store[ref.path], ...data };
+  store[ref.path] = { ...store[ref.path], ...resolve(store[ref.path], data) };
   notify();
 }
 export async function addDoc(col, data) { const ref = doc(col); await setDoc(ref, data); return ref; }
 export function writeBatch() {
   const ops = [];
   return {
-    update: (ref, data) => ops.push(() => { store[ref.path] = { ...store[ref.path], ...data }; }),
+    update: (ref, data) => ops.push(() => { store[ref.path] = { ...store[ref.path], ...resolve(store[ref.path], data) }; }),
     set: (ref, data) => ops.push(() => { store[ref.path] = { ...data }; }),
     delete: (ref) => ops.push(() => { delete store[ref.path]; }),
     commit: async () => { ops.forEach((o) => o()); notify(); },
@@ -58,3 +66,5 @@ export function onSnapshot(ref, cb) {
   return () => subs.delete(run);
 }
 export async function deleteDoc(ref) { delete store[ref.path]; notify(); }
+// arrayUnion simulado: se resuelve en updateDoc/batch.update.
+export const arrayUnion = (...values) => ({ __arrayUnion: values });

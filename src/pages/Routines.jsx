@@ -55,6 +55,7 @@ export default function Routines() {
               ) : (
                 <button className="btn small" onClick={() => setActiveRoutine(user.uid, routines, r.id)}>Activar</button>
               )}
+              <button className="btn small ghost" onClick={() => navigate(`/rutinas/${r.id}?mejoras=1`)}>Proponer mejoras</button>
               <button className="btn small ghost" onClick={() => { setDescription(''); setSharing(r); }}>
                 {r.publicId ? 'Compartida' : 'Compartir'}
               </button>

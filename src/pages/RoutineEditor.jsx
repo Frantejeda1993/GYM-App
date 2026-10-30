@@ -2,25 +2,25 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
-import { saveRoutine } from '../lib/db';
+import { saveRoutine, ignoreRoutineTip } from '../lib/db';
 import { now } from '../lib/dates';
 import { WEEKDAYS, sequenceLetter, newSession, newStrengthItem, newCardioItem, cardioSummary, setsLabel, cloneSession } from '../lib/routine';
 import { describeLoad, describeItemLoad } from '../lib/load';
-import { reviewRoutine } from '../lib/routineReview';
+import { proposeImprovements } from '../lib/routineTips';
 import { Header, Modal, Empty } from '../components/ui';
 import ExerciseList from '../components/ExerciseList';
 import ExerciseThumb from '../components/ExerciseThumb';
 import { AnimationModal } from '../components/ExerciseInfo';
 import { ExerciseEditor } from './ExerciseForm';
 import { StrengthItemEditor, CardioItemEditor } from '../components/ItemEditors';
-import RoutineReview, { reviewSummary } from '../components/RoutineReview';
+import ImprovementTour from '../components/ImprovementTour';
 
 export default function RoutineEditor() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { routines, loaded, exerciseById } = useData();
   const isNew = id === 'nueva';
   const source = isNew ? null : routines.find((r) => r.id === id);
@@ -48,7 +48,16 @@ export default function RoutineEditor() {
     }
   }, [isNew, source, draft, params, location.state]);
 
-  const review = useMemo(() => (draft ? reviewRoutine(draft, exerciseById) : null), [draft, exerciseById]);
+  const [touring, setTouring] = useState(() => params.get('mejoras') === '1');
+  const steps = useMemo(
+    () => (draft ? proposeImprovements(draft, exerciseById, { profile, ignored: draft.ignoredTips || [] }) : []),
+    [draft, exerciseById, profile],
+  );
+  // El tour trabaja sobre la lista calculada al abrirlo (los pasos aplicados no se recalculan a mitad).
+  const [tourSteps, setTourSteps] = useState(null);
+  useEffect(() => {
+    if (touring && draft && !tourSteps) setTourSteps(steps);
+  }, [touring, draft, steps, tourSteps]);
 
   if (!isNew && loaded && !source) {
     return (
@@ -70,7 +79,7 @@ export default function RoutineEditor() {
 
   function save() {
     if (!valid) return;
-    const errors = review.issues.filter((i) => i.level === 'error').length;
+    const errors = steps.filter((i) => i.level === 'error').length;
     if (errors && !window.confirm(`La revisión encontró ${errors} ${errors === 1 ? 'fallo' : 'fallos'} en la rutina. ¿Guardar igualmente?`)) return;
     const data = { ...draft, name: draft.name.trim() };
     if (data.mode === 'weekly') {
@@ -104,9 +113,9 @@ export default function RoutineEditor() {
             ? 'Por día de la semana: asigna una sesión a cada día o déjalo como descanso.'
             : 'Secuencial: las sesiones se hacen en orden A → B → C y vuelven a empezar.'}
         </p>
-        {(!review.empty || review.issues.length > 0) && (
-          <button type="button" className={`review-link lv-${reviewSummary(review).top}`} onClick={() => document.getElementById('revision')?.scrollIntoView({ behavior: 'smooth' })}>
-            Revisión: {reviewSummary(review).text} ↓
+        {sessions.length > 0 && (
+          <button type="button" className={`review-link lv-${steps[0]?.level || 'ok'}`} onClick={() => { setTourSteps(null); setTouring(true); }}>
+            {steps.length ? `Proponer mejoras · ${steps.length} ${steps.length === 1 ? 'propuesta' : 'propuestas'} ›` : 'Proponer mejoras · todo en orden ✓'}
           </button>
         )}
       </div>
@@ -212,7 +221,18 @@ export default function RoutineEditor() {
         </Modal>
       )}
 
-      <RoutineReview review={review} mode={draft.mode} />
+      {touring && tourSteps && (
+        <ImprovementTour
+          steps={tourSteps}
+          onApply={(step) => update((d) => step.apply(d))}
+          onIgnore={(step) => {
+            update((d) => ({ ...d, ignoredTips: [...new Set([...(d.ignoredTips || []), step.key])] }));
+            // En una rutina ya guardada, el "ignorar" se guarda al momento.
+            if (!isNew) ignoreRoutineTip(user.uid, source, step.key);
+          }}
+          onClose={() => { setTouring(false); setTourSteps(null); }}
+        />
+      )}
 
       <div className="sticky-foot">
         <button className="btn primary wide" disabled={!valid} onClick={save}>

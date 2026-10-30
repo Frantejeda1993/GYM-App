@@ -6,12 +6,13 @@ import {
   updateDoc,
   writeBatch,
   deleteDoc,
+  arrayUnion,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { normalize } from './text';
 import { isoWeekKey, weekDates, toISODate, now, parseISODate, weekdayIndex } from './dates';
-import { weekPlan, nextSequenceIndex } from './sessions';
+import { weekPlan, nextSequenceIndex, templateKey } from './sessions';
 
 export const userDoc = (uid) => doc(db, 'users', uid);
 export const routinesCol = (uid) => collection(db, 'users', uid, 'routines');
@@ -86,6 +87,12 @@ export function deleteRoutineSoft(uid, id) {
 }
 
 // Una sola rutina activa: activa la elegida y desactiva el resto.
+// Mejora de la rutina que el usuario decidió ignorar: no se vuelve a proponer.
+export function ignoreRoutineTip(uid, routine, key) {
+  if (!routine) return null;
+  return fireAndForget(updateDoc(doc(db, 'users', uid, 'routines', routine.id), { ignoredTips: arrayUnion(key) }));
+}
+
 export function setActiveRoutine(uid, routines, activeId) {
   const batch = writeBatch(db);
   routines.forEach((r) => {
@@ -152,21 +159,61 @@ export function saveSessionProgress(uid, id, { entries, cardio }) {
 // y, en modo secuencial, avanza la secuencia.
 export function finalizeSession(uid, session, routine, templateSessions) {
   const batch = writeBatch(db);
-  batch.update(doc(db, 'users', uid, 'sessions', session.id), {
+  const sessionPatch = {
     entries: session.entries,
     cardio: session.cardio,
     status: 'done',
     finishedAt: serverTimestamp(),
-  });
+    undo: null,
+  };
   if (routine) {
     const patch = {};
     if (templateSessions) patch.templateSessions = templateSessions;
     if (routine.mode === 'sequential') patch.nextSequenceIndex = nextSequenceIndex(routine, session.templateSessionId);
     if (Object.keys(patch).length) {
       batch.update(doc(db, 'users', uid, 'routines', routine.id), { ...patch, updatedAt: serverTimestamp() });
+      // Para poder reabrir la sesión y deshacer lo que se cambió en la rutina.
+      sessionPatch.undo = {
+        routineId: routine.id,
+        beforeTemplate: routine.templateSessions,
+        beforeNext: routine.nextSequenceIndex ?? 0,
+        afterKey: templateKey(patch.templateSessions || routine.templateSessions),
+        afterNext: patch.nextSequenceIndex ?? routine.nextSequenceIndex ?? 0,
+      };
     }
   }
+  batch.update(doc(db, 'users', uid, 'sessions', session.id), sessionPatch);
   return fireAndForget(batch.commit());
+}
+
+// Reabrir una sesión finalizada (solo la de hoy). Si la rutina no ha cambiado desde que se
+// finalizó, se deshacen los cambios que aplicó (pesos, progresión, avance de secuencia) para no
+// aplicarlos dos veces al volver a finalizar. Devuelve 'reverted' | 'kept' | 'none'.
+export function reopenSession(uid, session, routine) {
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'users', uid, 'sessions', session.id), { status: 'in_progress', finishedAt: null, undo: null });
+  let result = 'none';
+  const u = session.undo;
+  if (u && routine && routine.id === u.routineId) {
+    const unchanged = templateKey(routine.templateSessions) === u.afterKey && (routine.nextSequenceIndex ?? 0) === u.afterNext;
+    if (unchanged) {
+      batch.update(doc(db, 'users', uid, 'routines', routine.id), {
+        templateSessions: u.beforeTemplate,
+        nextSequenceIndex: u.beforeNext,
+        updatedAt: serverTimestamp(),
+      });
+      result = 'reverted';
+    } else {
+      result = 'kept';
+    }
+  }
+  fireAndForget(batch.commit());
+  return result;
+}
+
+// Corregir una sesión ya finalizada (fechas pasadas incluidas). No toca la rutina.
+export function saveEditedSession(uid, id, { entries, cardio }) {
+  return fireAndForget(updateDoc(doc(db, 'users', uid, 'sessions', id), { entries, cardio, editedAt: serverTimestamp() }));
 }
 
 // Descartar: la sesión cuenta como no realizada (no avanza la secuencia).

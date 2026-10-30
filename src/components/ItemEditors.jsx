@@ -58,6 +58,8 @@ export function StrengthItemEditor({ item, exercise, onSave, onDelete, onClose }
       loadMode: f.loadMode,
       setLoads: progressive ? setLoads : null,
       loadKg,
+      // Si cambias el peso a mano, el reparto por mano guardado deja de valer.
+      sideLoads: loadKg !== item.loadKg || f.loadMode !== (item.loadMode || 'fixed') ? null : item.sideLoads ?? null,
       restSec: Number(f.restSec),
       incrementKg: Number(f.incrementKg),
     });

@@ -19,11 +19,11 @@ export default function Progress() {
   const list = useMemo(() => trainedExercises(sessions), [sessions]);
   const [params, setParams] = useSearchParams();
   const view = params.get('vista') || 'musculos';
-  const tabs = [['musculos', 'Músculos'], ['ejercicios', 'Ejercicios'], ['cuerpo', 'Cuerpo']];
+  const tabs = [['musculos', 'Músculos'], ['ejercicios', 'Ejercicios'], ['historial', 'Historial'], ['cuerpo', 'Cuerpo']];
   return (
     <div className="page">
       <Header title="Progreso" />
-      <div className="segmented three">
+      <div className="segmented four">
         {tabs.map(([k, l]) => (
           <button key={k} className={view === k ? 'on' : ''} onClick={() => setParams(k === 'musculos' ? {} : { vista: k }, { replace: true })}>{l}</button>
         ))}
@@ -31,6 +31,7 @@ export default function Progress() {
       <div className="mt8" />
       {view === 'musculos' && <MuscleDashboard />}
       {view === 'cuerpo' && <BodyView />}
+      {view === 'historial' && <SessionHistory sessions={sessions} onOpen={(id) => navigate(`/sesion/${id}`)} />}
       {view === 'ejercicios' && (<>
       {loaded && !list.length && (
         <Empty title="Aún no hay sesiones finalizadas">
@@ -134,5 +135,31 @@ export function ProgressDetail() {
         </>
       )}
     </div>
+  );
+}
+
+// Historial de sesiones (finalizadas y no realizadas), de la más reciente a la más antigua.
+function SessionHistory({ sessions, onOpen }) {
+  const list = sessions.filter((s) => s.status !== 'in_progress').sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  if (!list.length) return <Empty title="Aún no hay sesiones registradas" />;
+  return (
+    <ul className="list">
+      {list.slice(0, 120).map((s) => {
+        const sets = (s.entries || []).flatMap((e) => e.sets);
+        const done = sets.filter((x) => x.done).length;
+        return (
+          <li key={s.id}>
+            <button className="row-btn" onClick={() => onOpen(s.id)}>
+              <span className="row-title">
+                {s.sessionName || 'Sesión'}
+                {s.status === 'skipped' && <span className="badge">no realizada</span>}
+                {s.editedAt && <span className="badge">corregida</span>}
+              </span>
+              <span className="row-sub">{formatDay(s.date)}{s.status === 'done' ? ` · ${done}/${sets.length} series` : ''}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

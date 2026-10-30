@@ -3,7 +3,7 @@ const pad = (n) => String(n).padStart(2, '0');
 
 // Permite simular otra fecha en el modo de prueba: ?hoy=2026-10-15
 function overrideNow() {
-  if (!import.meta.env.DEV) return null;
+  if (!import.meta.env.DEV || typeof window === 'undefined') return null;
   const m = /[?&]hoy=(\d{4}-\d{2}-\d{2})/.exec(window.location.href);
   return m ? parseISODate(m[1]) : null;
 }

@@ -2,7 +2,7 @@ import { WEEKDAYS } from './routine';
 
 // Grupos musculares que se revisan. Un ejercicio aporta 1 serie al grupo si lo trabaja como
 // principal y 0,5 si es secundario (lo mismo que el dashboard muscular).
-const GROUPS = {
+export const GROUPS = {
   chest: { label: 'Pecho', muscles: ['chest'], major: true, suggest: 'press de banca, press inclinado con mancuernas o aperturas' },
   back: { label: 'Espalda', muscles: ['lats', 'middle back'], major: true, suggest: 'jalón al pecho, dominadas o remo' },
   shoulders: { label: 'Hombros', muscles: ['shoulders'], major: true, suggest: 'press militar, elevaciones laterales o face pull' },
@@ -16,20 +16,20 @@ const GROUPS = {
 };
 const SMALL_ISOLATION = new Set(['biceps', 'triceps', 'calves', 'abdominals', 'forearms']);
 
-function contribution(ex, muscles) {
+export function contribution(ex, muscles) {
   if ((ex.primaryMuscles || []).some((m) => muscles.includes(m))) return 1;
   if ((ex.secondaryMuscles || []).some((m) => muscles.includes(m))) return 0.5;
   return 0;
 }
 
 // Multiarticular: trabaja varios grupos (p. ej. sentadilla, press, remo).
-const isCompound = (ex) => (ex.primaryMuscles || []).length + (ex.secondaryMuscles || []).length >= 3;
-const isIsolation = (ex) => (ex.primaryMuscles || []).length === 1 && SMALL_ISOLATION.has(ex.primaryMuscles[0]) && (ex.secondaryMuscles || []).length <= 1;
+export const isCompound = (ex) => (ex.primaryMuscles || []).length + (ex.secondaryMuscles || []).length >= 3;
+export const isIsolation = (ex) => (ex.primaryMuscles || []).length === 1 && SMALL_ISOLATION.has(ex.primaryMuscles[0]) && (ex.secondaryMuscles || []).length <= 1;
 
 const r1 = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 
 // Minutos estimados: cada serie ~40 s de trabajo más su descanso; el cardio, sus minutos.
-function sessionMinutes(s) {
+export function sessionMinutes(s) {
   return (s.items || []).reduce((a, it) => {
     if (it.kind === 'cardio') return a + (Number(it.minutes) || 0);
     const sets = Number(it.sets) || 0;

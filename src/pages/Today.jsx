@@ -86,7 +86,9 @@ export default function Today() {
             <div className="card done-card">
               <p className="eyebrow">Hecho hoy</p>
               {doneToday.map((s) => (
-                <p key={s.id} className="done-line">✓ {s.sessionName} <span className="muted small">· {countSets(s).done} series</span></p>
+                <button key={s.id} className="done-line link-row" onClick={() => navigate(`/sesion/${s.id}`)}>
+                  ✓ {s.sessionName} <span className="muted small">· {countSets(s).done} series · ver, corregir o reabrir ›</span>
+                </button>
               ))}
             </div>
           )}

@@ -23,10 +23,10 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, write: if isOwner(uid);
 
-      // Sesiones: una sesión finalizada (status 'done') es inmutable.
+      // Sesiones: se pueden corregir o reabrir (también las finalizadas); una finalizada no se borra.
       match /sessions/{sessionId} {
-        allow read, create: if isOwner(uid);
-        allow update, delete: if isOwner(uid) && resource.data.status != 'done';
+        allow read, create, update: if isOwner(uid);
+        allow delete: if isOwner(uid) && resource.data.status != 'done';
       }
 
       // routines, weekOverrides, bodyMetrics

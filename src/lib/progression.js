@@ -24,13 +24,19 @@ export function previousEntry(sessions, current, entry) {
 }
 
 // Regla:
-// - Subir: todas las series hechas y en el máximo del rango (o más).
+// - Subir: todas las series hechas y (todas en el máximo del rango o más, o todas "sobrado"),
+//   salvo que alguna serie se marcara como "justo".
 // - Bajar: alguna serie por debajo del mínimo en esta sesión y en la anterior.
 export function progressionFor(item, entry, prev) {
   const inc = Number(item.incrementKg) || 0;
   const done = doneSets(entry);
   if (!inc || !done.length) return null;
-  if (done.length === entry.sets.length && done.every((s) => s.reps >= item.repMax)) return { dir: 'up', delta: inc };
+  const allDone = done.length === entry.sets.length;
+  const anyHard = done.some((s) => s.feel === 'hard');
+  if (allDone && !anyHard) {
+    if (done.every((s) => s.reps >= item.repMax)) return { dir: 'up', delta: inc, reason: 'reps' };
+    if (done.every((s) => s.feel === 'easy')) return { dir: 'up', delta: inc, reason: 'easy' };
+  }
   if (belowMin(entry) && prev && belowMin(prev)) {
     const base = item.loadMode === 'progressive' ? Math.min(...(item.setLoads || [item.loadKg])) : item.loadKg;
     const floor = item.loadType === 'barbell' ? item.barKg || 0 : 0;

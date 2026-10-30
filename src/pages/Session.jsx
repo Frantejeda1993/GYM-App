@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useData } from '../data';
-import { saveSessionProgress, finalizeSession, discardSession } from '../lib/db';
-import { sessionItems, countSets, anyMarked, computeChanges, applyChanges, defaultAccepted, adhocEntry, adhocCardio } from '../lib/sessions';
+import { saveSessionProgress, finalizeSession, discardSession, reopenSession, saveEditedSession } from '../lib/db';
+import {
+  sessionItems, countSets, anyMarked, computeChanges, applyChanges, defaultAccepted, defaultChoices, adhocEntry, adhocCardio,
+  canSplit, splitOf, kgFromSides, lastTimeFor, templateKey,
+} from '../lib/sessions';
 import { describeLoad, inputToStored, storedToInput } from '../lib/load';
 import { newStrengthItem, newCardioItem, CARDIO_TYPES } from '../lib/routine';
 import { toISODate, now, formatDay } from '../lib/dates';
@@ -13,10 +16,16 @@ import ExerciseList from '../components/ExerciseList';
 import RestTimer, { unlockAudio } from '../components/RestTimer';
 import { ExerciseInfoModal } from '../components/ExerciseInfo';
 
-
+export const FEELS = [
+  { key: 'hard', label: 'Justo' },
+  { key: 'ok', label: 'Bien' },
+  { key: 'easy', label: 'Sobrado' },
+];
+const feelLabel = (k) => FEELS.find((f) => f.key === k)?.label;
 
 export default function SessionPage() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const { sessions, loaded } = useData();
   const remote = sessions.find((s) => s.id === id);
 
@@ -28,11 +37,15 @@ export default function SessionPage() {
       </div>
     );
   }
-  if (remote.status !== 'in_progress') return <SessionSummary session={remote} />;
+  if (remote.status !== 'in_progress') {
+    if (params.get('editar') && remote.status === 'done') return <ActiveSession key={`${remote.id}-edit`} initial={remote} editMode />;
+    return <SessionSummary session={remote} />;
+  }
   return <ActiveSession key={remote.id} initial={remote} />;
 }
 
-function ActiveSession({ initial }) {
+// editMode: corregir una sesión ya finalizada (no toca la rutina, se guarda con un botón).
+function ActiveSession({ initial, editMode = false }) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { exerciseById, routineById, sessions } = useData();
@@ -43,9 +56,9 @@ function ActiveSession({ initial }) {
   const dirty = useRef(false);
   const routine = routineById(s.routineId);
 
-  // Guardado con pequeño retraso para no escribir en cada toque.
+  // Guardado con pequeño retraso para no escribir en cada toque (no en modo corrección).
   useEffect(() => {
-    if (!dirty.current) return undefined;
+    if (editMode || !dirty.current) return undefined;
     const t = setTimeout(() => {
       saveSessionProgress(user.uid, s.id, s);
       dirty.current = false;
@@ -56,6 +69,7 @@ function ActiveSession({ initial }) {
   const latest = useRef(s);
   latest.current = s;
   useEffect(() => {
+    if (editMode) return undefined;
     const flush = () => {
       if (dirty.current) {
         saveSessionProgress(user.uid, latest.current.id, latest.current);
@@ -69,7 +83,7 @@ function ActiveSession({ initial }) {
       document.removeEventListener('visibilitychange', flush);
       window.removeEventListener('pagehide', flush);
     };
-  }, [user.uid]);
+  }, [user.uid, editMode]);
 
   const update = useCallback((fn) => {
     dirty.current = true;
@@ -86,7 +100,7 @@ function ActiveSession({ initial }) {
       e.sets[i].done = willBeDone;
       return e;
     });
-    if (willBeDone && entry.restSec > 0) setRest({ end: Date.now() + entry.restSec * 1000, total: entry.restSec });
+    if (willBeDone && !editMode && entry.restSec > 0) setRest({ end: Date.now() + entry.restSec * 1000, total: entry.restSec });
   }
 
   const items = sessionItems(s);
@@ -97,8 +111,12 @@ function ActiveSession({ initial }) {
 
   return (
     <div className="page session-page">
-      <Header title={s.sessionName || 'Sesión'} back="/" />
-      {isPast && <p className="warn-box small">Sesión del {formatDay(s.date)}. Revisa y finalízala; se guarda con esa fecha.</p>}
+      <Header
+        title={editMode ? `Corregir · ${s.sessionName || 'Sesión'}` : s.sessionName || 'Sesión'}
+        back={editMode ? () => (!dirty.current || window.confirm('Hay cambios sin guardar. ¿Salir igualmente?')) && navigate(-1) : '/'}
+      />
+      {editMode && <p className="warn-box small">Corrigiendo la sesión del {formatDay(s.date)}. Cambia el historial y el progreso, no la rutina.</p>}
+      {!editMode && isPast && <p className="warn-box small">Sesión del {formatDay(s.date)}. Revisa y finalízala; se guarda con esa fecha.</p>}
 
       <div className="session-top">
         <span className="muted small">{done}/{total} series</span>
@@ -112,6 +130,7 @@ function ActiveSession({ initial }) {
               key={it.id}
               entry={s.entries.find((e) => e.id === it.id)}
               exercise={exerciseById(it.exerciseId)}
+              last={lastTimeFor(sessions, it.exerciseId, s)}
               onToggle={toggleSet}
               onEdit={editEntry}
               onRemove={() => update((d) => ({ ...d, entries: d.entries.filter((e) => e.id !== it.id) }))}
@@ -131,7 +150,20 @@ function ActiveSession({ initial }) {
 
       <div className="session-foot">
         {rest && <RestTimer end={rest.end} total={rest.total} onChange={(end, t) => setRest({ end, total: t })} onClose={() => setRest(null)} />}
-        <button className="btn primary wide" onClick={() => setModal('finish')}>Finalizar sesión</button>
+        {editMode ? (
+          <button
+            className="btn primary wide"
+            onClick={() => {
+              saveEditedSession(user.uid, s.id, s);
+              dirty.current = false;
+              navigate(-1);
+            }}
+          >
+            Guardar cambios
+          </button>
+        ) : (
+          <button className="btn primary wide" onClick={() => setModal('finish')}>Finalizar sesión</button>
+        )}
       </div>
 
       {modal === 'all' && (
@@ -152,6 +184,7 @@ function ActiveSession({ initial }) {
       )}
       {modal === 'add' && (
         <AddModal
+          onlyToday={editMode}
           onClose={() => setModal(null)}
           onAddExercise={(ex, fixed) => {
             const item = newStrengthItem(ex, profile);
@@ -170,9 +203,10 @@ function ActiveSession({ initial }) {
           routine={routine}
           sessions={sessions}
           onClose={() => setModal(null)}
-          onFinish={(changes, accepted) => {
+          onFinish={(changes, accepted, choices) => {
             dirty.current = false;
-            finalizeSession(user.uid, s, routine, routine ? applyChanges(routine, s.templateSessionId, changes, accepted) : null);
+            const loadTypeOf = (exId) => exerciseById(exId)?.loadType;
+            finalizeSession(user.uid, s, routine, routine ? applyChanges(routine, s.templateSessionId, changes, accepted, choices, loadTypeOf) : null);
             navigate('/');
           }}
           onDiscard={() => {
@@ -209,6 +243,8 @@ function NumCell({ value, onChange, step, label }) {
   );
 }
 
+const unitOf = (lt) => (lt === 'barbell' ? 'kg/lado' : lt === 'dumbbell' ? 'kg/mano' : lt === 'bodyweight' ? '+kg' : 'kg');
+
 function SetRow({ entry, i, onToggle, onEdit }) {
   const set = entry.sets[i];
   const lt = entry.loadType;
@@ -222,35 +258,102 @@ function SetRow({ entry, i, onToggle, onEdit }) {
       for (let j = i + 1; j < e.sets.length; j++) if (!e.sets[j].done && e.sets[j].kg === old) e.sets[j].kg = newKg;
       return e;
     });
+  // Peso distinto por mano: cada lado por separado; kg = media (mancuerna) o suma (máquina).
+  const changeSide = (side) => (v) =>
+    onEdit(entry.id, (e) => {
+      const cur = e.sets[i];
+      const old = [cur.kgL, cur.kgR].join('|');
+      cur[side] = Math.max(0, Math.round(v * 100) / 100);
+      cur.kg = kgFromSides(cur.kgL, cur.kgR, lt);
+      for (let j = i + 1; j < e.sets.length; j++) {
+        const nx = e.sets[j];
+        if (!nx.done && [nx.kgL, nx.kgR].join('|') === old) Object.assign(nx, { kgL: cur.kgL, kgR: cur.kgR, kg: cur.kg });
+      }
+      return e;
+    });
   const changeReps = (v) =>
     onEdit(entry.id, (e) => {
       e.sets[i].reps = Math.max(0, Math.round(v));
       return e;
     });
-  const unit = lt === 'barbell' ? 'kg/lado' : lt === 'dumbbell' ? 'kg/mano' : lt === 'bodyweight' ? '+kg' : 'kg';
+  const setFeel = (k) =>
+    onEdit(entry.id, (e) => {
+      e.sets[i].feel = e.sets[i].feel === k ? null : k;
+      return e;
+    });
+  const unit = unitOf(lt);
+  const split = entry.split && set.kgL != null;
   return (
-    <div className={set.done ? 'set-row done' : 'set-row'}>
-      <span className="set-n">{i + 1}</span>
-      <label className="set-field">
-        <NumCell value={shown} onChange={changeKg} label={`Serie ${i + 1} ${unit}`} />
-        <span>{unit}</span>
-      </label>
-      <label className="set-field">
-        <NumCell value={set.reps} onChange={changeReps} label={`Serie ${i + 1} reps`} />
-        <span>reps</span>
-      </label>
-      <button className="set-check" onClick={() => onToggle(entry, i)} aria-label={set.done ? `Desmarcar serie ${i + 1}` : `Marcar serie ${i + 1}`}>
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-      </button>
+    <div className="set-wrap">
+      <div className={set.done ? 'set-row done' : 'set-row'}>
+        <span className="set-n">{i + 1}</span>
+        {split ? (
+          <span className="set-field split-field">
+            <NumCell value={set.kgL} onChange={changeSide('kgL')} label={`Serie ${i + 1} izquierda kg`} />
+            <span className="split-sep">I · D</span>
+            <NumCell value={set.kgR} onChange={changeSide('kgR')} label={`Serie ${i + 1} derecha kg`} />
+          </span>
+        ) : (
+          <label className="set-field">
+            <NumCell value={shown} onChange={changeKg} label={`Serie ${i + 1} ${unit}`} />
+            <span>{unit}</span>
+          </label>
+        )}
+        <label className="set-field">
+          <NumCell value={set.reps} onChange={changeReps} label={`Serie ${i + 1} reps`} />
+          <span>reps</span>
+        </label>
+        <button className="set-check" onClick={() => onToggle(entry, i)} aria-label={set.done ? `Desmarcar serie ${i + 1}` : `Marcar serie ${i + 1}`}>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </button>
+      </div>
+      {set.done && (
+        <div className="feel-row" role="group" aria-label={`Cómo fue la serie ${i + 1}`}>
+          {FEELS.map((f) => (
+            <button key={f.key} className={set.feel === f.key ? `feel on feel-${f.key}` : 'feel'} onClick={() => setFeel(f.key)}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function StrengthCard({ entry, exercise, onToggle, onEdit, onRemove }) {
+// "Última vez": series hechas de la sesión anterior con este ejercicio, con su sensación.
+function LastTime({ last, loadType, barKg }) {
+  if (!last) return <p className="last-time muted">Primera vez con este ejercicio.</p>;
+  const sets = last.entry.sets.filter((x) => x.done);
+  const fmt = (v) => String(Math.round(v * 100) / 100).replace('.', ',');
+  const day = new Date(`${last.date}T12:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  return (
+    <p className="last-time">
+      <span className="muted">Última vez · {day} ({unitOf(loadType)}):</span>{' '}
+      {sets.map((x, i) => (
+        <span key={i} className="last-set">
+          {x.kgL != null && last.entry.split ? `${fmt(x.kgL)}/${fmt(x.kgR)}` : fmt(storedToInput(x.kg, loadType, barKg))}×{x.reps}
+          {x.feel && <em className={`feel-tag feel-${x.feel}`}>{feelLabel(x.feel)}</em>}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function StrengthCard({ entry, exercise, last, onToggle, onEdit, onRemove }) {
   const [info, setInfo] = useState(false);
   if (!entry) return null;
   const allDone = entry.sets.length > 0 && entry.sets.every((x) => x.done);
   const planned = entry.sets[0];
+  const toggleSplit = () =>
+    onEdit(entry.id, (e) => {
+      e.split = !e.split;
+      e.sets = e.sets.map((x) => {
+        if (e.split) return { ...x, ...splitOf(x.kg, e.loadType) };
+        const { kgL, kgR, ...rest } = x; // eslint-disable-line no-unused-vars
+        return rest;
+      });
+      return e;
+    });
   return (
     <section className={allDone ? 'ex-card all-done' : 'ex-card'}>
       <div className="ex-head">
@@ -270,6 +373,7 @@ function StrengthCard({ entry, exercise, onToggle, onEdit, onRemove }) {
           </button>
         )}
       </div>
+      <LastTime last={last} loadType={entry.loadType} barKg={entry.barKg} />
       {exercise?.notes && (
         <button className="notes-line" onClick={() => setInfo(true)}>📝 {exercise.notes}</button>
       )}
@@ -283,7 +387,9 @@ function StrengthCard({ entry, exercise, onToggle, onEdit, onRemove }) {
           onClick={() =>
             onEdit(entry.id, (e) => {
               const last = e.sets[e.sets.length - 1] || { plannedKg: 0, plannedReps: e.repMin, kg: 0, reps: e.repMin };
-              e.sets.push({ plannedKg: last.kg, plannedReps: last.reps, kg: last.kg, reps: last.reps, done: false });
+              const nx = { plannedKg: last.kg, plannedReps: last.reps, kg: last.kg, reps: last.reps, done: false, feel: null };
+              if (e.split) Object.assign(nx, last.kgL != null ? { kgL: last.kgL, kgR: last.kgR } : splitOf(last.kg, e.loadType));
+              e.sets.push(nx);
               return e;
             })
           }
@@ -297,6 +403,11 @@ function StrengthCard({ entry, exercise, onToggle, onEdit, onRemove }) {
         >
           − Serie
         </button>
+        {canSplit(entry.loadType) && (
+          <button className={entry.split ? 'btn small split-on' : 'btn small ghost'} onClick={toggleSplit} aria-pressed={!!entry.split}>
+            {entry.loadType === 'dumbbell' ? 'Por mano' : 'Por lado'}
+          </button>
+        )}
         {entry.adhoc && <button className="btn small danger-ghost" onClick={onRemove}>Quitar</button>}
       </div>
     </section>
@@ -356,7 +467,7 @@ function MarkAllModal({ session, exerciseById, onEdit, onClose, onConfirm }) {
   );
 }
 
-function AddModal({ onClose, onAddExercise, onAddCardio }) {
+function AddModal({ onClose, onAddExercise, onAddCardio, onlyToday }) {
   const [step, setStep] = useState('kind'); // kind | pick | scope
   const [pending, setPending] = useState(null); // { type, exercise }
   return (
@@ -364,10 +475,10 @@ function AddModal({ onClose, onAddExercise, onAddCardio }) {
       {step === 'kind' && (
         <>
           <button className="choice" onClick={() => setStep('pick')}><strong>Ejercicio</strong><span>Del catálogo o creado por usuarios.</span></button>
-          <button className="choice" onClick={() => { setPending({ type: 'cardio' }); setStep('scope'); }}><strong>Cardio</strong><span>Cinta, bici, elíptica…</span></button>
+          <button className="choice" onClick={() => (onlyToday ? onAddCardio(false) : (setPending({ type: 'cardio' }), setStep('scope')))}><strong>Cardio</strong><span>Cinta, bici, elíptica…</span></button>
         </>
       )}
-      {step === 'pick' && <ExerciseList onSelect={(ex) => { setPending({ type: 'exercise', exercise: ex }); setStep('scope'); }} />}
+      {step === 'pick' && <ExerciseList onSelect={(ex) => (onlyToday ? onAddExercise(ex, false) : (setPending({ type: 'exercise', exercise: ex }), setStep('scope')))} />}
       {step === 'scope' && (
         <>
           {pending.exercise && <p className="row-title">{pending.exercise.displayName}</p>}
@@ -388,11 +499,15 @@ function FinishModal({ session, routine, sessions, onClose, onFinish, onDiscard 
   const cardioPending = session.cardio.filter((c) => !c.done).length;
   const changes = useMemo(() => computeChanges(session, routine, describeLoad, sessions), [session, routine, sessions]);
   const [accepted, setAccepted] = useState(() => defaultAccepted(changes));
+  const [choices, setChoices] = useState(() => defaultChoices(changes));
   const toggle = (id) => setAccepted((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const marked = anyMarked(session);
   const progression = changes.filter((c) => c.kind === 'progression');
-  const ups = changes.filter((c) => c.kind !== 'progression' && !c.down);
-  const downs = changes.filter((c) => c.kind !== 'progression' && c.down);
+  const mixed = changes.filter((c) => c.kind === 'mixed');
+  const ups = changes.filter((c) => (c.kind === 'update' || c.kind === 'add') && !c.down);
+  const downs = changes.filter((c) => c.kind === 'update' && c.down);
+  // Ejercicios que también están en otros días: reciben la misma subida/bajada de peso.
+  const linked = [...new Map(changes.filter((c) => c.alsoIn?.length).map((c) => [c.itemId, c])).values()];
 
   const Toggle = ({ c }) => (
     <label className="toggle-row">
@@ -407,7 +522,7 @@ function FinishModal({ session, routine, sessions, onClose, onFinish, onDiscard 
       onClose={onClose}
       footer={
         marked ? (
-          <button className="btn primary wide" onClick={() => onFinish(changes, accepted)}>Finalizar</button>
+          <button className="btn primary wide" onClick={() => onFinish(changes, accepted, choices)}>Finalizar</button>
         ) : (
           <button className="btn danger-ghost wide" onClick={onDiscard}>Descartar sesión</button>
         )
@@ -425,6 +540,18 @@ function FinishModal({ session, routine, sessions, onClose, onFinish, onDiscard 
               {cardioPending > 0 && `${cardioPending} cardio sin marcar`} quedarán como no realizados.
             </p>
           )}
+          {mixed.map((c) => (
+            <div key={c.id} className="change-block mixed">
+              <p className="filter-label">{c.label}</p>
+              <p className="small">{c.detail} ¿Qué guardo para la próxima vez?</p>
+              {c.options.map((o) => (
+                <label key={o.key} className="toggle-row">
+                  <input type="radio" name={c.id} checked={(choices[c.id] || 'progressive') === o.key} onChange={() => setChoices((x) => ({ ...x, [c.id]: o.key }))} />
+                  <span>{o.label}</span>
+                </label>
+              ))}
+            </div>
+          ))}
           {progression.length > 0 && (
             <div className="change-block progression">
               <p className="filter-label">Progresión de carga</p>
@@ -446,8 +573,16 @@ function FinishModal({ session, routine, sessions, onClose, onFinish, onDiscard 
               <p className="muted small">Si no lo marcas, la rutina mantiene el valor anterior.</p>
             </div>
           )}
+          {linked.length > 0 && (
+            <div className="change-block">
+              <p className="muted small">
+                Si cambia el peso, se aplica la misma subida o bajada en los otros días con ese ejercicio:{' '}
+                {linked.map((c) => `${c.label.split(' · serie')[0]} (${c.alsoIn.join(', ')})`).join('; ')}.
+              </p>
+            </div>
+          )}
           {!changes.length && <p className="muted small">Sin cambios en la rutina.</p>}
-          <p className="muted small">Una vez finalizada, la sesión no se puede editar.</p>
+          <p className="muted small">Podrás reabrirla hoy o corregirla más tarde desde Progreso → Historial.</p>
         </>
       )}
     </Modal>
@@ -455,18 +590,50 @@ function FinishModal({ session, routine, sessions, onClose, onFinish, onDiscard 
 }
 
 function SessionSummary({ session }) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { routineById, sessions } = useData();
   const items = sessionItems(session);
+  const isToday = session.date === toISODate(now());
+  const otherOpen = sessions.some((x) => x.status === 'in_progress' && x.id !== session.id);
+  const routine = routineById(session.routineId);
+  const fmt = (v) => String(Math.round(v * 100) / 100).replace('.', ',');
+
+  function reopen() {
+    if (otherOpen) {
+      window.alert('Ya tienes otra sesión en curso. Finalízala o descártala antes de reabrir esta.');
+      return;
+    }
+    const u = session.undo;
+    const canRevert = u && routine && templateKey(routine.templateSessions) === u.afterKey && (routine.nextSequenceIndex ?? 0) === u.afterNext;
+    const msg = !u
+      ? 'La sesión vuelve a estar en curso. Al finalizarla de nuevo se recalculan los cambios en la rutina.'
+      : canRevert
+        ? 'La sesión vuelve a estar en curso y se deshacen los cambios que aplicó en la rutina (pesos, progresión). Al finalizarla de nuevo se recalculan.'
+        : 'La rutina ha cambiado desde que finalizaste: no se pueden deshacer automáticamente los cambios que aplicó. Al volver a finalizar, revisa que no se suba el peso dos veces.';
+    if (!window.confirm(`${msg}\n\n¿Reabrir?`)) return;
+    reopenSession(user.uid, session, routine);
+  }
+
   return (
     <div className="page">
-      <Header title={session.sessionName || 'Sesión'} back="/" />
-      <p className="muted">{formatDay(session.date)} · {session.status === 'done' ? 'Finalizada' : 'No realizada'}</p>
+      <Header title={session.sessionName || 'Sesión'} back={-1} />
+      <p className="muted">{formatDay(session.date)} · {session.status === 'done' ? 'Finalizada' : 'No realizada'}{session.editedAt ? ' · corregida' : ''}</p>
+      {session.status === 'done' && (
+        <div className="row-gap mb12">
+          <button className="btn small" onClick={() => navigate(`/sesion/${session.id}?editar=1`)}>Corregir</button>
+          {isToday && <button className="btn small" onClick={reopen}>Reabrir</button>}
+        </div>
+      )}
       {items.map((it) =>
         it.kind === 'strength' ? (
           <div key={it.id} className="card">
             <p className="row-title">{it.name}</p>
             {it.sets.map((x, i) => (
               <p key={i} className={x.done ? 'small' : 'small muted'}>
-                {i + 1}. {describeLoad(x.kg, it.loadType, it.barKg)} × {x.reps} {x.done ? '✓' : '(no hecha)'}
+                {i + 1}. {it.split && x.kgL != null ? `${fmt(x.kgL)} / ${fmt(x.kgR)} kg (izq. / der.)` : describeLoad(x.kg, it.loadType, it.barKg)} × {x.reps}{' '}
+                {x.done ? '✓' : '(no hecha)'}
+                {x.feel && <em className={`feel-tag feel-${x.feel}`}>{feelLabel(x.feel)}</em>}
               </p>
             ))}
           </div>
@@ -479,5 +646,3 @@ function SessionSummary({ session }) {
     </div>
   );
 }
-
-
