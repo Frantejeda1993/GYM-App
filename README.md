@@ -19,6 +19,7 @@ React + Vite · vite-plugin-pwa · Firebase Auth (Google) · Firestore con cach�
 npm install
 npm run dev        # contra Firebase real
 npm run dev:mock   # Firebase simulado en el navegador, para probar la interfaz sin cuenta
+npm test           # tests de la lógica (Vitest); también se ejecutan al publicar
 npm run build
 ```
 
