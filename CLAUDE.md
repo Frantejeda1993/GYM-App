@@ -2,6 +2,15 @@
 
 Este proyecto tiene un grafo de conocimiento en `graphify-out/` (god nodes, comunidades y relaciones entre archivos).
 
+### Si graphify no está instalado
+Comprobar con `graphify --version`. Si no existe:
+1. Instalar `uv` si falta: `winget install --id=astral-sh.uv -e` (Windows) o `curl -LsSf https://astral.sh/uv/install.sh | sh` (macOS/Linux).
+2. Instalar graphify (el paquete se llama `graphifyy`, con doble y): `uv tool install graphifyy` (alternativas: `pipx install graphifyy` o `pip install graphifyy`).
+3. Instalar la skill para Claude Code: `graphify install --platform claude`.
+4. Verificar con `graphify --version` y regenerar el grafo con `graphify update .`.
+
+No ejecutar `graphify claude install` en este proyecto: reescribiría esta sección. Los hooks ya están en `.claude/settings.json`.
+
 ### Antes de trabajar: consultar SIEMPRE el grafo
 - Al empezar cualquier tarea sobre el código (pregunta, bug, feature, refactor), ejecutar primero `graphify query "<pregunta>"` antes de cualquier grep, búsqueda o lectura de archivos fuente.
 - Usar `graphify path "<A>" "<B>"` para relaciones entre conceptos y `graphify explain "<concepto>"` para un concepto puntual.
